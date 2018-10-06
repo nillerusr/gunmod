@@ -204,7 +204,7 @@ p->pszAmmo1 = NULL;
 	p->iMaxAmmo2 = -1;
 	p->iMaxClip = WEAPON_NOCLIP;
 	p->iSlot = 0;
-	p->iPosition = 1;
+	p->iPosition = 2;
 	p->iId = m_iId = WEAPON_GRAVGUN;
 	p->iFlags = 0;
 	p->iWeight = 20;
