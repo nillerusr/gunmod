@@ -30,6 +30,8 @@
 #include "soundent.h"
 #include "decals.h"
 #include "gamerules.h"
+#include "gunmod.h"
+#include "prop.h"
 
 extern CGraph WorldGraph;
 extern int gEvilImpulse101;
@@ -355,15 +357,17 @@ void W_Precache( void )
 	// hornetgun
 	UTIL_PrecacheOtherWeapon( "weapon_hornetgun" );
 #endif
-	if( cvar_allow_gravgun.value )
+	if ( mp_gunmod.value )
+	{
 		UTIL_PrecacheOtherWeapon( "weapon_gravgun" );
-	if( cvar_allow_ar2.value )
 		UTIL_PrecacheOtherWeapon( "weapon_ar2" );
-	if( cvar_allow_bigcock.value )
 		UTIL_PrecacheOtherWeapon( "weapon_big_cock" );
-	if( cvar_allow_gateofbabylon.value )
 		UTIL_PrecacheOtherWeapon( "weapon_gateofbabylon" );
-
+		UTIL_PrecacheOtherWeapon( "weapon_m249" );
+		UTIL_PrecacheOtherWeapon( "weapon_knife" );
+		UTIL_PrecacheOtherWeapon( "weapon_shockrifle" );
+		UTIL_PrecacheOtherWeapon( "weapon_displacer" );
+	}
 
 #if !defined( OEM_BUILD ) && !defined( HLDEMO_BUILD )
 	if ( g_pGameRules->IsDeathmatch() )
@@ -550,6 +554,7 @@ float CBasePlayerItem::TouchGravGun( CBaseEntity *attacker, int stage )
 	}
 	if( m_pfnThink == NULL || m_pfnThink == &CBasePlayerItem::AttemptToMaterialize )
 	{
+
 		SetThink( &CBasePlayerItem::AttemptToMaterialize );
 		pev->nextthink = g_pGameRules->FlWeaponRespawnTime(this);
 	}
@@ -568,6 +573,21 @@ void CBasePlayerItem::AttemptToMaterialize( void )
 
 	if( time == 0 )
 	{
+		if( mp_tolchock.value && !RANDOM_LONG(0,200) )
+		{
+			Vector vecSrc = g_pGameRules->VecWeaponRespawnSpot( this );
+			vecSrc.z += 20;
+			CProp *tolchock = GetClassPtr((CProp*)NULL);
+			tolchock->pev->spawnflags |= 96;
+			tolchock->pev->model = MAKE_STRING( "models/xash/toilet.mdl" );
+			tolchock->Spawn();
+			tolchock->pev->rendermode = 1;
+			tolchock->pev->renderamt = 255;
+			tolchock->pev->rendercolor = Vector(20,20,20);
+			UTIL_SetOrigin(tolchock->pev, vecSrc );
+			tolchock->pev->angles = pev->angles;
+			DROP_TO_FLOOR( ENT( tolchock->pev ) );
+		}
 		Materialize();
 		return;
 	}
@@ -600,7 +620,7 @@ CBaseEntity* CBasePlayerItem::Respawn( void )
 {
 	// make a copy of this weapon that is invisible and inaccessible to players (no touch function). The weapon spawn/respawn code
 	// will decide when to make the weapon visible and touchable.
-	CBaseEntity *pNewWeapon = CBaseEntity::Create( STRING( pev->classname ), g_pGameRules->VecWeaponRespawnSpot( this ), pev->angles, pev->owner );
+	CBaseEntity *pNewWeapon = CBaseEntity::Create( STRING( pev->classname ), m_SpawnPoint, pev->angles, pev->owner );
 
 	if( pNewWeapon )
 	{
@@ -997,13 +1017,14 @@ BOOL CBasePlayerWeapon::IsUseable( void )
 {
 	if( m_iClip <= 0 )
 	{
-		if( m_pPlayer->m_rgAmmo[PrimaryAmmoIndex()] <= 0 && iMaxAmmo1() != -1 )			
+		if( m_pPlayer->m_rgAmmo[PrimaryAmmoIndex()] <= 0 && iMaxAmmo1() != -1 )
 		{
+			if( pszAmmo2() && m_pPlayer->m_rgAmmo[SecondaryAmmoIndex()] > 0 )
+				return TRUE;
 			// clip is empty (or nonexistant) and the player has no more ammo of this type. 
 			return FALSE;
 		}
 	}
-
 	return TRUE;
 }
 
@@ -1025,7 +1046,7 @@ BOOL CBasePlayerWeapon::CanDeploy( void )
 	{
 		bHasAmmo |= ( m_pPlayer->m_rgAmmo[m_iSecondaryAmmoType] != 0 );
 	}
-	if( m_iClip > 0 )
+	if( m_iClip > 0 || m_pPlayer->m_rgAmmo[SecondaryAmmoIndex()] > 0 )
 	{
 		bHasAmmo |= 1;
 	}

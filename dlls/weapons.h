@@ -94,18 +94,18 @@ public:
 // weapon weight factors (for auto-switching)   (-1 = noswitch)
 #define CROWBAR_WEIGHT		0
 #define GLOCK_WEIGHT		10
-#define PYTHON_WEIGHT		15
+#define PYTHON_WEIGHT		14
 #define MP5_WEIGHT			15
-#define SHOTGUN_WEIGHT		15
+#define SHOTGUN_WEIGHT		16
 #define CROSSBOW_WEIGHT		10
 #define RPG_WEIGHT			20
-#define GAUSS_WEIGHT		20
-#define EGON_WEIGHT			20
+#define GAUSS_WEIGHT		21
+#define EGON_WEIGHT			19
 #define HORNETGUN_WEIGHT	10
-#define HANDGRENADE_WEIGHT	5
+#define HANDGRENADE_WEIGHT	6
 #define SNARK_WEIGHT		5
 #define SATCHEL_WEIGHT		-10
-#define TRIPMINE_WEIGHT		-10
+#define TRIPMINE_WEIGHT		-5
 
 // weapon clip/carry ammo capacities
 #define URANIUM_MAX_CARRY		100
@@ -532,10 +532,12 @@ public:
 	int iItemSlot( void ) { return 1; }
 	void EXPORT SwingAgain( void );
 	void EXPORT Smack( void );
+	void EXPORT CreateThink( void );
 	int GetItemInfo( ItemInfo *p );
 	int AddToPlayer( CBasePlayer *pPlayer );
 
 	void PrimaryAttack( void );
+	void SecondaryAttack( void );
 	int Swing( int fFirst );
 	BOOL Deploy( void );
 	void Holster( int skiplocal = 0 );
@@ -546,7 +548,7 @@ public:
 	TraceResult m_trHit;
 
 	virtual BOOL UseDecrement( void )
-	{ 
+	{
 #if defined( CLIENT_WEAPONS )
 		return TRUE;
 #else
@@ -638,6 +640,8 @@ public:
 	void Holster( int skiplocal = 0 );
 	void Reload( void );
 	void WeaponIdle( void );
+	void Cleaner( void );
+	CBeam* m_pBeam1;
 
 	int m_fInZoom; // don't save this
 

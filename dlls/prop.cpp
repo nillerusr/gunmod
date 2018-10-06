@@ -29,199 +29,34 @@
 #include "player.h"
 #include "explode.h"
 #include "gamerules.h"
+#include "shake.h"
+#include "prop.h"
 
-#define SF_PROP_RESPAWN		8 // enable autorespawn
-#define SF_PROP_BREAKABLE		16 // enable break/explode
-#define SF_PROP_FIXED		32 // don't move untill touch
-typedef enum { expRandom, expDirected} Explosions;
-typedef enum { matGlass = 0, matWood, matMetal, matFlesh, matCinderBlock, matCeilingTile, matComputer, matUnbreakableGlass, matRocks, matNone, matLastMaterial } Materials;
+extern void respawn( entvars_t *pev, BOOL fCopyCorpse );
 
-// round() has problems, so just implement it here
-static inline int myround(float f)
-{
-	return (int)(f + 0.5);
-}
-
-//extern "C" void AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 Vector UTIL_AngleVectorsF(const Vector &angles)
 {
-	float rgflVecOut[3];
-	float rgflVecIn[3];
-	angles.CopyToArray(rgflVecIn);
-	g_engfuncs.pfnAngleVectors(rgflVecIn, rgflVecOut, NULL, NULL);
-	return Vector(rgflVecOut);
+        float rgflVecOut[3];
+        float rgflVecIn[3];
+        angles.CopyToArray(rgflVecIn);
+        g_engfuncs.pfnAngleVectors(rgflVecIn, rgflVecOut, NULL, NULL);
+        return Vector(rgflVecOut);
 }
 Vector UTIL_AngleVectorsR(const Vector &angles)
 {
-	float rgflVecOut[3];
-	float rgflVecIn[3];
-	angles.CopyToArray(rgflVecIn);
-	g_engfuncs.pfnAngleVectors(rgflVecIn, NULL, rgflVecOut, NULL);
-	return Vector(rgflVecOut);
+        float rgflVecOut[3];
+        float rgflVecIn[3];
+        angles.CopyToArray(rgflVecIn);
+        g_engfuncs.pfnAngleVectors(rgflVecIn, NULL, rgflVecOut, NULL);
+        return Vector(rgflVecOut);
 }
 Vector UTIL_AngleVectorsU(const Vector &angles)
 {
-	float rgflVecOut[3];
-	float rgflVecIn[3];
-	angles.CopyToArray(rgflVecIn);
-	g_engfuncs.pfnAngleVectors(rgflVecIn, NULL, rgflVecOut, NULL);
-	return Vector(rgflVecOut);
+        float rgflVecOut[3];                                                                      float rgflVecIn[3];
+        angles.CopyToArray(rgflVecIn);                                                            g_engfuncs.pfnAngleVectors(rgflVecIn, NULL, rgflVecOut, NULL);
+        return Vector(rgflVecOut);
 }
-//===================grenade
 
-enum PropShape
-{
-	SHAPE_CYL_H = 0,
-	SHAPE_CYL_V,
-	SHAPE_BOX,
-	SHAPE_GENERIC,
-	SHAPE_SPHERE,
-	SHAPE_NOROTATE
-};
-
-class CProp : public CBaseEntity
-{
-public:
-	void Spawn(void);
-	void Precache();
-
-	void EXPORT BounceTouch(CBaseEntity *pOther);
-	//void EXPORT SlideTouch(CBaseEntity *pOther);
-	virtual void Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value);
-	virtual void Force(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value);
-	int TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, float flDamage, int bitsDamageType);
-	virtual int	ObjectCaps(void) { return (CBaseEntity::ObjectCaps() & ~FCAP_ACROSS_TRANSITION) | FCAP_IMPULSE_USE | FCAP_CONTINUOUS_USE; }
-	virtual void BounceSound(void);
-	virtual int	BloodColor(void) { return DONT_BLEED; }
-	virtual void Killed(entvars_t *pevAttacker, int iGib);
-	int		Save( CSave &save );
-	int		Restore( CRestore &restore );
-
-	virtual float TouchGravGun( CBaseEntity *attacker, int stage )
-	{
-		float speed = 2500;
-
-		if( pev->deadflag )
-			return 0;
-
-		pev->movetype = MOVETYPE_BOUNCE;
-
-		if( stage )
-		{
-			pev->nextthink = gpGlobals->time + m_flRespawnTime;
-			SetThink( &CProp::RespawnThink );
-			m_flLastGravgun = gpGlobals->time;
-		}
-
-		if( stage == 2 )
-		{
-			UTIL_MakeVectors( attacker->pev->v_angle + attacker->pev->punchangle);
-			Vector atarget = UTIL_VecToAngles(gpGlobals->v_forward);
-			pev->angles.x = UTIL_AngleMod(pev->angles.x);
-			pev->angles.y = UTIL_AngleMod(pev->angles.y);
-			pev->angles.z = UTIL_AngleMod(pev->angles.z);
-			atarget.x = UTIL_AngleMod(atarget.x);
-			atarget.y = UTIL_AngleMod(atarget.y);
-			atarget.z = UTIL_AngleMod(atarget.z);
-			pev->avelocity.x = UTIL_AngleDiff(atarget.x, pev->angles.x) * 10;
-			pev->avelocity.y = UTIL_AngleDiff(atarget.y, pev->angles.y) * 10;
-			pev->avelocity.z = UTIL_AngleDiff(atarget.z, pev->angles.z) * 10;
-		}
-
-		if( stage == 3 )
-		{
-			pev->avelocity.y = pev->avelocity.y*1.5 + RANDOM_FLOAT(100, -100);
-			pev->avelocity.x = pev->avelocity.x*1.5 + RANDOM_FLOAT(100, -100);
-			m_flLastGravgun = -1;
-		}
-
-		if( !m_attacker || m_attacker == this )
-		{
-			m_owner2 = attacker;
-			m_attacker = attacker;
-			return speed;
-		}
-
-		if( !m_owner2 && m_attacker && ( pev->velocity.Length() < 200)  )
-		{
-			m_attacker = attacker;
-			return speed;
-		}
-
-		if( stage != 2 && ( pev->velocity.Length() == 0 ) )
-			return speed;
-
-		if( m_attacker == attacker )
-		{
-			m_owner2 = attacker;
-			return speed;
-		}
-
-		return 0;
-	}
-
-	void CheckRotate();
-	void EXPORT RespawnThink();
-	void EXPORT AngleThink();
-	void EXPORT DeployThink();
-	void EXPORT DieThink();
-	void DamageSound( void );
-	void PropRespawn();
-	void KeyValue( KeyValueData* pkvd);
-
-	static const char *pSoundsWood[];
-	static const char *pSoundsFlesh[];
-	static const char *pSoundsGlass[];
-	static const char *pSoundsMetal[];
-	static const char *pSoundsConcrete[];
-	static const char *pSpawnObjects[];
-
-	inline BOOL		Explodable( void ) { return ExplosionMagnitude() > 0; }
-	inline int		ExplosionMagnitude( void ) { return pev->impulse; }
-	inline void		ExplosionSetMagnitude( int magnitude ) { pev->impulse = magnitude; }
-
-
-	static void MaterialSoundPrecache( Materials precacheMaterial );
-	static void MaterialSoundRandom( edict_t *pEdict, Materials soundMaterial, float volume );
-	static const char **MaterialSoundList( Materials precacheMaterial, int &soundCount );
-	void EXPORT		Die( void );
-
-	float m_flFloorFriction;
-	float m_flCollideFriction;
-
-	// hull sizes
-	Vector minsH, maxsH;
-	Vector minsV, maxsV;
-
-	// spawn backup;
-	Vector spawnOrigin;
-	Vector spawnAngles;
-
-	// multiplayer
-	EHANDLE m_owner2;
-	EHANDLE m_attacker;
-
-	// hand throw
-	float m_flNextAttack;
-	float m_flRespawnTime;
-
-	// shape change
-	PropShape m_shape;
-	PropShape m_oldshape;
-	EHANDLE m_pHolstered;
-	float m_flSpawnHealth;
-	int			m_idShard;
-	float		m_angle;
-	int			m_iszGibModel;
-	Materials	m_Material;
-	Explosions	m_Explosion;
-	int m_iaCustomAnglesX[10];
-	int m_iaCustomAnglesZ[10];
-	float m_flTouchTimer;
-	int m_iTouchCounter;
-	float m_flLastGravgun;
-	static TYPEDESCRIPTION m_SaveData[];
-};
 LINK_ENTITY_TO_CLASS(prop, CProp);
 
 TYPEDESCRIPTION CProp::m_SaveData[] =
@@ -433,6 +268,7 @@ void CProp::Precache( void )
 	if( pGibName )
 		m_idShard = PRECACHE_MODEL( (char *)pGibName );
 	PRECACHE_MODEL( (char *)STRING(pev->model) );
+	PRECACHE_SOUND("misc/ear_ringing.wav");
 }
 
 void CProp::DamageSound( void )
@@ -696,7 +532,7 @@ void CProp::Killed(entvars_t *pevAttacker, int iGib)
 	//m_attacker = NULL;
 }
 
-void CProp::Use(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value)
+void CProp::PropUse(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value)
 {
 	if( pev->health <= 0)
 		return;
@@ -905,12 +741,6 @@ void CProp::BounceTouch(CBaseEntity *pOther)
 		return;
 	}
 	pev->movetype = MOVETYPE_BOUNCE;
-	if( gpGlobals->time - m_flLastGravgun < 0.1 )
-	{
-		//pev->nextthink = gpGlobals->time + 0.1;
-		return;
-	}
-
 	if( gpGlobals->time - m_flTouchTimer < 1 && m_iTouchCounter > 100 )
 		{
 			if( pOther->pev->solid == SOLID_BBOX || pOther->pev->solid == SOLID_SLIDEBOX )
@@ -1037,6 +867,23 @@ void CProp::BounceTouch(CBaseEntity *pOther)
 	}
 }
 
+void CProp::TolchokTouch( CBaseEntity *pOther )
+{
+	if( !pOther->IsPlayer() )
+	    return;
+
+	CBasePlayer *pPlayer = (CBasePlayer*)pOther;
+	UTIL_ScreenFade( pOther, Vector( 0, 0, 0 ), 10.0, 2, 255, FFADE_IN );
+	pPlayer->pev->solid = SOLID_NOT;
+	pPlayer->GibMonster();   // This clears pev->model
+        pPlayer->pev->effects |= EF_NODRAW;
+	pPlayer->pev->deadflag = DEAD_DYING;
+	pPlayer->RemoveAllItems( TRUE );
+	respawn( pPlayer->pev, !( pPlayer->m_afPhysicsFlags & PFLAG_OBSERVER ) );
+	EMIT_SOUND( ENT( pPlayer->pev ), CHAN_VOICE, "misc/ear_ringing.wav", 1, ATTN_NORM );
+	Killed( NULL, NULL);
+}
+
 void CProp::BounceSound(void)
 {
 	MaterialSoundRandom( edict(), m_Material, 0.2 );
@@ -1095,8 +942,17 @@ void CProp::PropRespawn()
 	SET_MODEL( ENT(pev), STRING(pev->model) );
 	m_oldshape = (PropShape)-1;
 	CheckRotate();
-	SetTouch( &CProp::BounceTouch );
 
+	if( !(pev->spawnflags & SF_PROP_FIXED) )
+	{
+		SetTouch( &CProp::BounceTouch );
+		SetUse( &CProp::PropUse );
+	}
+	else
+		SetUse( NULL );
+
+	if( pev->spawnflags & SF_PROP_TOLCHOK )
+		SetTouch( &CProp::TolchokTouch );
 	pev->framerate = 1.0f;
 	UTIL_SetOrigin( pev, spawnOrigin );
 	m_owner2 = NULL;
@@ -1121,14 +977,9 @@ void CProp::RespawnThink()
 
 void CProp::AngleThink()
 {
-	if( gpGlobals->time - m_flLastGravgun < 0.1 )
-	{
-		pev->nextthink = gpGlobals->time + 0.1;
-		return;
-	}
 	pev->nextthink = gpGlobals->time + m_flRespawnTime;
 	SetThink( &CProp::RespawnThink);
-	if( pev->flags & FL_ONGROUND || fabs(pev->velocity.z) < 40 )
+	if (!(pev->flags & FL_ONGROUND || fabs(pev->velocity.z) < 40))
 	{
 		m_owner2 = m_attacker = 0;
 		return;
@@ -1239,8 +1090,8 @@ int CProp::TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, float flD
 {
 	Vector r = (pevInflictor->origin - pev->origin);
 	if ( (!m_attacker
-		  || (pev->velocity.Length() < 400)) && ((CBaseEntity*)GET_PRIVATE(ENT(pevAttacker)))
-		 && ((CBaseEntity*)GET_PRIVATE(ENT(pevAttacker)))->IsPlayer() && gpGlobals->time - m_flLastGravgun > 0.1 )
+		  || (pev->velocity.Length() < 700)) && ((CBaseEntity*)GET_PRIVATE(ENT(pevAttacker)))
+		 && ((CBaseEntity*)GET_PRIVATE(ENT(pevAttacker)))->IsPlayer())
 		m_attacker.Set(ENT(pevAttacker));
 	DeployThink();
 
@@ -1257,6 +1108,9 @@ int CProp::TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, float flD
 	// Breakables take double damage from the crowbar
 	if ( bitsDamageType & DMG_CLUB )
 		flDamage *= 2;
+
+	if ( bitsDamageType & DMG_ENERGYBEAM )
+		flDamage *= 3;
 
 	// Boxes / glass / etc. don't take much poison damage, just the impact of the dart - consider that 10%
 	if ( bitsDamageType & DMG_POISON )

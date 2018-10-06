@@ -139,6 +139,12 @@ LOCAL_SRC_FILES := agrunt.cpp airtank.cpp \
 	   coop.cpp \
 	   gateofbabylon.cpp \
 	   gravgunmod.cpp \
+	   shock.cpp \
+	   shockrifle.cpp \
+	   displacer.cpp \
+	   m249.cpp \
+	   knife.cpp \
+	   gunmod.cpp
 #	   ../game_shared/voice_gamemgr.cpp
 
 LOCAL_LDLIBS := -llog
