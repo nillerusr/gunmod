@@ -348,10 +348,14 @@ void CGauss::StartFire( void )
 #ifndef CLIENT_DLL
 		float flZVel = m_pPlayer->pev->velocity.z;
 
-		if( !m_fPrimaryFire )
+		if( m_fPrimaryFire )
 		{
-			m_pPlayer->pev->velocity = m_pPlayer->pev->velocity - gpGlobals->v_forward * flDamage * 5;
+			if( m_pPlayer->pev->flags & FL_ONGROUND )
+				m_pPlayer->pev->velocity = m_pPlayer->pev->velocity - gpGlobals->v_forward * 400;
 		}
+		else
+			m_pPlayer->pev->velocity = m_pPlayer->pev->velocity - gpGlobals->v_forward * flDamage * 5;
+
 
 		if( !g_pGameRules->IsMultiplayer() )
 		{
