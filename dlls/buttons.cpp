@@ -25,6 +25,7 @@
 #include "cbase.h"
 #include "saverestore.h"
 #include "doors.h"
+#include "coop_util.h"
 
 #define SF_BUTTON_DONTMOVE		1
 #define SF_ROTBUTTON_NOTSOLID		1
@@ -1327,4 +1328,176 @@ int CButtonTarget::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, 
 	Use( Instance( pevAttacker ), this, USE_TOGGLE, 0 );
 
 	return 1;
+}
+
+class CBaseTeleportButton : public CBaseButton
+{
+public:
+	void Spawn();
+	void ButtonActivate();
+	void EXPORT TriggerAndWait( void );
+	void EXPORT ButtonUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+};
+
+LINK_ENTITY_TO_CLASS( func_teleport_button, CBaseTeleportButton )
+
+void CBaseTeleportButton::Spawn()
+{
+	//----------------------------------------------------
+	//determine sounds for buttons
+	//a sound of 0 should not make a sound
+	//----------------------------------------------------
+	const char *pszSound = ButtonSound( m_sounds );
+	PRECACHE_SOUND( pszSound );
+	pev->noise = ALLOC_STRING( pszSound );
+
+	Precache();
+
+	if( FBitSet( pev->spawnflags, SF_BUTTON_SPARK_IF_OFF ) )// this button should spark in OFF state
+	{
+		SetThink( &CBaseButton::ButtonSpark );
+		pev->nextthink = gpGlobals->time + 0.5;// no hurry, make sure everything else spawns
+	}
+
+	SetMovedir( pev );
+
+	pev->movetype = MOVETYPE_PUSH;
+	pev->solid = SOLID_BSP;
+	SET_MODEL( ENT( pev ), STRING( pev->model ) );
+	
+	if( pev->speed == 0 )
+		pev->speed = 40;
+
+	if( pev->health > 0 )
+	{
+		pev->takedamage = DAMAGE_YES;
+	}
+
+	if( m_flWait == 0 )
+		m_flWait = 1;
+	if( m_flLip == 0 )
+		m_flLip = 4;
+
+	m_toggle_state = TS_AT_BOTTOM;
+	m_vecPosition1 = pev->origin;
+	// Subtract 2 from size because the engine expands bboxes by 1 in all directions making the size too big
+	m_vecPosition2	= m_vecPosition1 + ( pev->movedir * ( fabs( pev->movedir.x * ( pev->size.x - 2 ) ) + fabs( pev->movedir.y * ( pev->size.y - 2 ) ) + fabs( pev->movedir.z * ( pev->size.z - 2 ) ) - m_flLip ) );
+
+	// Is this a non-moving button?
+	if( ( ( m_vecPosition2 - m_vecPosition1 ).Length() < 1 ) || ( pev->spawnflags & SF_BUTTON_DONTMOVE ) )
+		m_vecPosition2 = m_vecPosition1;
+
+	m_fStayPushed = m_flWait == -1 ? TRUE : FALSE;
+	m_fRotating = FALSE;
+
+	// if the button is flagged for USE button activation only, take away it's touch function and add a use function
+	if( FBitSet( pev->spawnflags, SF_BUTTON_TOUCH_ONLY ) ) // touchable button
+	{
+		SetTouch( &CBaseButton::ButtonTouch );
+	}
+	else 
+	{
+		SetTouch( NULL );
+		SetUse( &CBaseTeleportButton::ButtonUse );
+	}
+}
+
+void CBaseTeleportButton::ButtonActivate()
+{
+	EMIT_SOUND( ENT( pev ), CHAN_VOICE, (char*)STRING( pev->noise ), 1, ATTN_NORM );
+
+	if( !UTIL_IsMasterTriggered( m_sMaster, m_hActivator ) )
+	{
+		// button is locked, play locked sound
+		PlayLockSounds( pev, &m_ls, TRUE, TRUE );
+		return;
+	}
+	else
+	{
+		// button is unlocked, play unlocked sound
+		PlayLockSounds( pev, &m_ls, FALSE, TRUE );
+	}
+
+	ASSERT( m_toggle_state == TS_AT_BOTTOM );
+	m_toggle_state = TS_GOING_UP;
+	
+	SetMoveDone( &CBaseTeleportButton::TriggerAndWait );
+	if( !m_fRotating )
+		LinearMove( m_vecPosition2, pev->speed );
+	else
+		AngularMove( m_vecAngle2, pev->speed );
+}
+
+void CBaseTeleportButton::ButtonUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+	// Ignore touches if button is moving, or pushed-in and waiting to auto-come-out.
+	// UNDONE: Should this use ButtonResponseToTouch() too?
+	if( m_toggle_state == TS_GOING_UP || m_toggle_state == TS_GOING_DOWN )
+		return;
+
+	m_hActivator = pActivator;
+	if( m_toggle_state == TS_AT_TOP )
+	{
+		if( !m_fStayPushed && FBitSet( pev->spawnflags, SF_BUTTON_TOGGLE ) )
+		{
+			EMIT_SOUND( ENT( pev ), CHAN_VOICE, (char*)STRING( pev->noise ), 1, ATTN_NORM );
+
+			//SUB_UseTargets( m_eoActivator );
+			ButtonReturn();
+		}
+	}
+	else
+		ButtonActivate();
+}
+
+void CBaseTeleportButton::TriggerAndWait( void )
+{
+	ASSERT( m_toggle_state == TS_GOING_UP );
+
+	if( !UTIL_IsMasterTriggered( m_sMaster, m_hActivator ) )
+		return;
+
+	m_toggle_state = TS_AT_TOP;
+
+	// If button automatically comes back out, start it moving out.
+	// Else re-instate touch method
+	if( m_fStayPushed || FBitSet( pev->spawnflags, SF_BUTTON_TOGGLE ) )
+	{
+		if( !FBitSet( pev->spawnflags, SF_BUTTON_TOUCH_ONLY ) ) // this button only works if USED, not touched!
+		{
+		// ALL buttons are now use only
+		SetTouch( NULL );
+		}
+		else
+			SetTouch( &CBaseButton::ButtonTouch );
+	}
+	else
+	{
+		pev->nextthink = pev->ltime + m_flWait;
+		SetThink( &CBaseButton::ButtonReturn );
+	}
+
+	pev->frame = 1;			// use alternate textures
+
+	edict_t	*pentTarget = NULL;
+	pentTarget = FIND_ENTITY_BY_TARGETNAME( pentTarget, STRING( pev->target ) );
+	Vector tmp = VARS( pentTarget )->origin;
+
+	UTIL_CleanSpawnPoint( tmp, 50 );
+
+	if( m_hActivator->IsPlayer() )
+		tmp.z -= m_hActivator->pev->mins.z;// make origin adjustments in case the teleportee is a player. (origin in center, not at feet)
+
+	tmp.z++;
+
+	m_hActivator->pev->flags &= ~FL_ONGROUND;
+
+	UTIL_SetOrigin( m_hActivator->pev, tmp );
+
+	m_hActivator->pev->angles = pentTarget->v.angles;
+
+	if( m_hActivator->IsPlayer() )
+		m_hActivator->pev->v_angle = pentTarget->v.angles;
+
+	m_hActivator->pev->fixangle = TRUE;
 }
