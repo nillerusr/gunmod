@@ -17,6 +17,7 @@
 #include "extdll.h"
 #include "util.h"
 #include "cbase.h"
+#include "decals.h"
 #include "player.h"
 #include "monsters.h"
 #include "weapons.h"
@@ -252,6 +253,21 @@ void CEgon::Fire( const Vector &vecOrigSrc, const Vector &vecDir )
 	if( tr.fAllSolid )
 		return;
 
+	UTIL_DecalTrace(&tr, DECAL_SMALLSCORCH2);
+
+	MESSAGE_BEGIN( MSG_PVS, SVC_TEMPENTITY, pev->origin );
+		WRITE_BYTE(TE_DLIGHT);
+		WRITE_COORD(tr.vecEndPos.x);	// X
+		WRITE_COORD(tr.vecEndPos.y);	// Y
+		WRITE_COORD(tr.vecEndPos.z);	// Z
+		WRITE_BYTE( 5 );		// radius * 0.1
+		WRITE_BYTE( 70 );		// r
+		WRITE_BYTE( 155 );		// g
+		WRITE_BYTE( 255 );		// b
+		WRITE_BYTE( 5 );		// time * 10
+		WRITE_BYTE( 5 );		// decay * 0.1
+	MESSAGE_END( );
+
 #ifndef CLIENT_DLL
 	CBaseEntity *pEntity = CBaseEntity::Instance( tr.pHit );
 
@@ -437,7 +453,7 @@ void CEgon::CreateEffect( void )
 	{
 		m_pBeam->SetScrollRate( 110 );
 		m_pBeam->SetNoise( 5 );
-		m_pNoise->SetColor( 80, 120, 255 );
+		m_pNoise->SetColor( 80, 200, 255 );
 		m_pNoise->SetNoise( 2 );
 	}
 #endif
