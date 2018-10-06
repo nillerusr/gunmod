@@ -144,7 +144,8 @@ LOCAL_SRC_FILES := agrunt.cpp airtank.cpp \
 	   displacer.cpp \
 	   m249.cpp \
 	   knife.cpp \
-	   gunmod.cpp
+	   gunmod.cpp \
+	   BMOD_flyingcrowbar.cpp
 #	   ../game_shared/voice_gamemgr.cpp
 
 LOCAL_LDLIBS := -llog

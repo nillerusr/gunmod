@@ -21,6 +21,7 @@
 #include "nodes.h"
 #include "player.h"
 #include "gamerules.h"
+#include "BMOD_flyingcrowbar.h"
 
 #define	CROWBAR_BODYHIT_VOLUME 128
 #define	CROWBAR_WALLHIT_VOLUME 512
@@ -323,6 +324,9 @@ int CCrowbar::Swing( int fFirst )
 
 			// delay the decal a bit
 			m_trHit = tr;
+
+			UTIL_Sparks(tr.vecEndPos);
+			UTIL_ScreenShake( tr.vecEndPos, 15.0, 20.0, 1, 50 );
 		}
 
 		m_pPlayer->m_iWeaponVolume = (int)( flVol * CROWBAR_WALLHIT_VOLUME );
@@ -337,6 +341,62 @@ int CCrowbar::Swing( int fFirst )
 #endif
 	return fDidHit;
 }
+
+void CCrowbar::CreateThink()
+{
+		// Get the origin, direction, and fix the angle of the throw.
+		Vector vecAng = m_pPlayer->pev->v_angle + m_pPlayer->pev->punchangle;
+		vecAng.z = -90;
+		UTIL_MakeVectors(m_pPlayer->pev->v_angle);
+		Vector vecSrc = m_pPlayer->GetGunPosition() + gpGlobals->v_right * 8 + gpGlobals->v_forward * 16;
+
+		int ang = RANDOM_LONG(-1000,-500);
+		// Create a flying ,crowbar.
+		CFlyingCrowbar *pFCBar = (CFlyingCrowbar *)Create( "flying_crowbar", vecSrc, Vector( 0, 0, 0 ), m_pPlayer->edict() );
+		// Give the crowbar its velocity, angle, and spin.
+		// Lower the gravity a bit, so it flys.
+		pFCBar->pev->velocity = gpGlobals->v_forward * (int)( -( ang / 2 ) ) + m_pPlayer->pev->velocity;
+		pFCBar->pev->angles = vecAng;
+		//ALERT(at_console,"angles %f %f %f\n",vecAng.x,vecAng.y,vecAng.z);
+		//ALERT(at_console,"velocity %f %f %f\n",pFCBar->pev->velocity.x,pFCBar->pev->velocity.y,pFCBar->pev->velocity.x);
+		pFCBar->pev->avelocity = Vector(ang,RANDOM_LONG(-50,50),RANDOM_LONG(-25,25));
+		pFCBar->pev->gravity = 0.5;
+		pFCBar->pev->dmg = -( ang / 10 );
+		pFCBar->m_pPlayer = m_pPlayer;
+
+		// Nope! take away the crowbar
+		m_pPlayer->RemovePlayerItem( this, FALSE );
+
+		// take item off hud
+		m_pPlayer->pev->weapons &= ~( 1 << this->m_iId );
+
+		// Destroy this weapon
+		DestroyItem();
+
+		// They no longer have an active item.
+		m_pPlayer->m_pActiveItem = NULL;
+
+		SetThink( NULL );
+}
+
+// BMOD Begin - Flying Crowbar
+void CCrowbar::SecondaryAttack()
+{
+	// Don't throw underwater, and only throw if we were able to detatch 
+	// from player.
+	if( ( m_pPlayer->pev->waterlevel != 3 ) )
+	{
+		SetThink( &CCrowbar::CreateThink );
+		pev->nextthink = gpGlobals->time + 0.2;
+
+		// Do player weapon anim and sound effect.
+		m_pPlayer->SetAnimation( PLAYER_ATTACK1 );
+		EMIT_SOUND_DYN( ENT( m_pPlayer->pev ), CHAN_WEAPON, "weapons/cbar_miss1.wav", 1, ATTN_NORM, 0, 94 + RANDOM_LONG( 0, 0xF ) );
+		SendWeaponAnim( CROWBAR_ATTACK1MISS );
+		m_flNextSecondaryAttack = UTIL_WeaponTimeBase() + 0.25;
+	}
+}
+// BMOD End - Flying Crowbar
 
 #ifdef CROWBAR_IDLE_ANIM
 void CCrowbar::WeaponIdle( void )

@@ -501,7 +501,8 @@ private:
 	bool dumpEmpty;
 	bool dumpEntvars;
 };
-#ifdef __GNUC__
+#if defined __GNUC__ && !defined __ANDROID__
+
 extern "C" char *__cxa_demangle(const char* mangled_name,
 								char* output_buffer, size_t* length,
 								int* status);
@@ -629,7 +630,7 @@ int CDumper::WriteFields( const char *pname, void *pBaseData, TYPEDESCRIPTION *p
 			for( j = 0; j < pTest->fieldSize; j++ )
 			{
 				const char *name = NAME_FOR_FUNCTION(((void**)pOutputData)[j]);
-#ifdef __GNUC__
+#if defined __GNUC__ && !defined __ANDROID__
 				char *demangled = __cxa_demangle( name, NULL, NULL, NULL );
 				if( demangled ) name = demangled;
 				Ent_ClientPrintf( client, "%s\n", name );
