@@ -92,6 +92,19 @@ void CCrossbowBolt::Spawn()
 	SetTouch( &CCrossbowBolt::BoltTouch );
 	SetThink( &CCrossbowBolt::BubbleThink );
 	pev->nextthink = gpGlobals->time + 0.2;
+	
+	MESSAGE_BEGIN( MSG_BROADCAST, SVC_TEMPENTITY );
+		WRITE_BYTE( TE_BEAMFOLLOW );
+		WRITE_SHORT( entindex() ); // entity
+		WRITE_SHORT( g_sModelIndexSmoke ); // model
+		WRITE_BYTE( 5 ); // life
+		WRITE_BYTE( 1 ); // width
+		WRITE_BYTE( 80 ); // r, g, b
+		WRITE_BYTE( 80 ); // r, g, b
+		WRITE_BYTE( 255 ); // r, g, b
+		WRITE_BYTE( 255 ); // brightness
+	MESSAGE_END(); // move PHS/PVS data sending into here (SEND_ALL, SEND_PVS, SEND_PHS)
+
 }
 
 void CCrossbowBolt::Precache()
@@ -127,7 +140,7 @@ void CCrossbowBolt::BoltTouch( CBaseEntity *pOther )
 
 		if( pOther->IsPlayer() )
 		{
-			pOther->TraceAttack( pevOwner, gSkillData.plrDmgCrossbowClient, pev->velocity.Normalize(), &tr, DMG_NEVERGIB ); 
+			pOther->TraceAttack( pevOwner, 110, pev->velocity.Normalize(), &tr, DMG_NEVERGIB ); 
 		}
 		else
 		{
@@ -148,17 +161,11 @@ void CCrossbowBolt::BoltTouch( CBaseEntity *pOther )
 			break;
 		}
 
-		if( !g_pGameRules->IsMultiplayer() )
-		{
-			Killed( pev, GIB_NEVER );
-		}
+		Killed( pev, GIB_NEVER );
 	}
 	else
 	{
 		EMIT_SOUND_DYN( ENT( pev ), CHAN_BODY, "weapons/xbow_hit1.wav", RANDOM_FLOAT( 0.95, 1.0 ), ATTN_NORM, 0, 98 + RANDOM_LONG( 0, 7 ) );
-
-		SetThink( &CBaseEntity::SUB_Remove );
-		pev->nextthink = gpGlobals->time;// this will get changed below if the bolt is allowed to stick in what it hit.
 
 		if( FClassnameIs( pOther->pev, "worldspawn" ) )
 		{
@@ -195,10 +202,6 @@ void CCrossbowBolt::BoltTouch( CBaseEntity *pOther )
 		{
 			UTIL_Sparks( pev->origin );
 		}
-	}
-
-	if( g_pGameRules->IsMultiplayer() )
-	{
 		SetThink( &CCrossbowBolt::ExplodeThink );
 		pev->nextthink = gpGlobals->time + 0.1;
 	}
@@ -415,6 +418,26 @@ void CCrossbow::FireSniperBolt()
 	pBolt->pev->avelocity.z = 10;
 	pBolt->SetTouch( NULL );
 #endif
+	MESSAGE_BEGIN( MSG_BROADCAST, SVC_TEMPENTITY );
+		WRITE_BYTE( TE_BEAMPOINTS );
+		WRITE_COORD( vecSrc.x );
+		WRITE_COORD( vecSrc.y );
+		WRITE_COORD( vecSrc.z );
+		WRITE_COORD( tr.vecEndPos.x );
+		WRITE_COORD( tr.vecEndPos.y );
+		WRITE_COORD( tr.vecEndPos.z );
+		WRITE_SHORT( g_sModelIndexLaser ); // model
+		WRITE_BYTE( 0 ); // framestart?
+		WRITE_BYTE( 0 ); // framerate?
+		WRITE_BYTE( 1 ); // life
+		WRITE_BYTE( 2 ); // width
+		WRITE_BYTE( 0 ); // noise
+		WRITE_BYTE( 50 ); // r, g, b
+		WRITE_BYTE( 50 ); // r, g, b
+		WRITE_BYTE( 200 ); // r, g, b
+		WRITE_BYTE( 200 ); // brightness
+		WRITE_BYTE( 0 ); // speed?
+	MESSAGE_END();
 #endif
 }
 
