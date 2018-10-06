@@ -388,11 +388,6 @@ int CAR2::SecondaryAmmoIndex(void)
 
 void CAR2::Spawn()
 {
-	if( !cvar_allow_ar2.value )
-	{
-		pev->flags = FL_KILLME;
-		return;
-	}
 	pev->classname = MAKE_STRING("weapon_ar2");
 	Precache();
 	SET_MODEL(ENT(pev), "models/w_ar2.mdl");
@@ -406,8 +401,6 @@ void CAR2::Spawn()
 
 void CAR2::Precache(void)
 {
-	if( !cvar_allow_ar2.value )
-		return;
 	PRECACHE_MODEL("models/v_ar2.mdl");
 	PRECACHE_MODEL("models/w_ar2.mdl");
 	PRECACHE_MODEL("models/p_ar2.mdl");
@@ -460,8 +453,6 @@ int CAR2::GetItemInfo(ItemInfo *p)
 
 int CAR2::AddToPlayer(CBasePlayer *pPlayer)
 {
-	if( !cvar_allow_ar2.value )
-		return FALSE;
 	if (CBasePlayerWeapon::AddToPlayer(pPlayer))
 	{
 		MESSAGE_BEGIN(MSG_ONE, gmsgWeapPickup, NULL, pPlayer->pev);

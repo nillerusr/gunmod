@@ -100,11 +100,6 @@ LINK_ENTITY_TO_CLASS(weapon_gravgun, CGravGun);
 
 void CGravGun::Spawn()
 {
-	if( !cvar_allow_gravgun.value )
-	{
-		pev->flags = FL_KILLME;
-		return;
-	}
 	pev->classname = MAKE_STRING("weapon_gravgun");
 	Precache();
 	m_iId = WEAPON_GRAVGUN;
@@ -143,8 +138,6 @@ Vector CGravGun::PredictTarget(float length)
 
 void CGravGun::Precache(void)
 {
-	if( !cvar_allow_gravgun.value )
-		return;
 	PRECACHE_MODEL("models/w_gravcannon.mdl");
 	PRECACHE_MODEL("models/v_gravcannon.mdl");
 	PRECACHE_MODEL("models/p_gravcannon.mdl");
@@ -176,9 +169,6 @@ BOOL CGravGun::Deploy(void)
 
 int CGravGun::AddToPlayer(CBasePlayer *pPlayer)
 {
-	if( !cvar_allow_gravgun.value )
-		return FALSE;
-
 	if (CBasePlayerWeapon::AddToPlayer(pPlayer))
 	{
 		MESSAGE_BEGIN(MSG_ONE, gmsgWeapPickup, NULL, pPlayer->pev);

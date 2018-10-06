@@ -459,6 +459,7 @@ void GameDLLInit( void )
 	GGM_RegisterCVars();
 	COOP_RegisterCVars();
 	ENT_RegisterCVars();
+	GM_RegisterCVars();
 
 	CVAR_REGISTER( &displaysoundlist );
 	CVAR_REGISTER( &allow_spectators );

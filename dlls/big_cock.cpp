@@ -36,7 +36,7 @@ class CBig_Cock : public CBasePlayerWeaponU
 public:
 	void Spawn( void );
 	void Precache( void );
-	int iItemSlot( void ) { return 3; }
+	int iItemSlot( void ) { return 2; }
 	int GetItemInfo(ItemInfo *p);
 
 	void PrimaryAttack( void );
@@ -59,11 +59,6 @@ LINK_ENTITY_TO_CLASS(weapon_90mhandcock, CBig_Cock);
 
 void CBig_Cock::Spawn()
 {
-	if( !cvar_allow_bigcock.value )
-	{
-		pev->flags = FL_KILLME;
-		return;
-	}
 	pev->classname = MAKE_STRING("weapon_big_cock"); // hack to allow for old names
 	Precache( );
 	m_iId = WEAPON_BIG_COCK;
@@ -77,8 +72,6 @@ void CBig_Cock::Spawn()
 
 void CBig_Cock::Precache(void)
 {
-	if( !cvar_allow_bigcock.value )
-		return;
 	PRECACHE_MODEL("models/v_9mmcockgunn.mdl");
 	PRECACHE_MODEL("models/w_9mmcockgunn.mdl");
 	PRECACHE_MODEL("models/p_9mmcockgunn.mdl");
@@ -90,7 +83,6 @@ void CBig_Cock::Precache(void)
 
 	PRECACHE_SOUND ("weapons/pl_gun1.wav");//silenced handgun
 	PRECACHE_SOUND ("weapons/pl_gun2.wav");//silenced handgun
-	PRECACHE_SOUND ("weapons/ck_gun3.wav");//handgun
 
 	m_usFireGlock1 = PRECACHE_EVENT( 1, "events/glock1.sc" );
 	m_usFireGlock2 = PRECACHE_EVENT( 1, "events/glock2.sc" );
@@ -217,12 +209,12 @@ void CBig_Cock::GlockFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 
 	TraceResult tr;
 	if (flSpread > 0){
-		m_pPlayer->FireBullets(1, vecSrc, vecAiming, Vector(flSpread, flSpread, flSpread), 8192, BULLET_PLAYER_357, 5, 35);
+		m_pPlayer->FireBullets(1, vecSrc, vecAiming, Vector(flSpread, flSpread, flSpread), 8192, BULLET_PLAYER_357, 5, 25);
 		m_pPlayer->pev->velocity = m_pPlayer->pev->velocity - gpGlobals->v_forward * 25 * 5;
 		
 	}
 	else{
-		m_pPlayer->FireBullets(1, vecSrc, vecAiming, Vector(flSpread, flSpread, flSpread), 8192, BULLET_PLAYER_357, 5, 60);
+		m_pPlayer->FireBullets(1, vecSrc, vecAiming, Vector(flSpread, flSpread, flSpread), 8192, BULLET_PLAYER_357, 5, 40);
 		m_pPlayer->pev->velocity = m_pPlayer->pev->velocity - gpGlobals->v_forward * 100 * 5;
 
 		//ApplyMultiDamage(m_pPlayer->pev, m_pPlayer->pev);

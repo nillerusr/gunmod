@@ -139,11 +139,6 @@ CGateOfBabylonBolt *CGateOfBabylonBolt::BoltCreate( void )
 
 void CGateOfBabylonBolt::Spawn()
 {
-	if( !cvar_allow_gateofbabylon.value )
-	{
-		pev->flags = FL_KILLME;
-		return;
-	}
 	Precache();
 	pev->movetype = MOVETYPE_FLY;
 	pev->solid = SOLID_BBOX;
@@ -164,10 +159,6 @@ void CGateOfBabylonBolt::Spawn()
 
 void CGateOfBabylonBolt::Precache()
 {
-	if( !cvar_allow_gateofbabylon.value )
-	{
-		return;
-	}
 	PRECACHE_MODEL( "models/w_crowbar.mdl" );
 	PRECACHE_SOUND( "weapons/xbow_hitbod1.wav" );
 	PRECACHE_SOUND( "weapons/xbow_hitbod2.wav" );
@@ -570,10 +561,6 @@ void CGateOfBabylon::Spawn()
 
 int CGateOfBabylon::AddToPlayer( CBasePlayer *pPlayer )
 {
-	if( !cvar_allow_gateofbabylon.value )
-	{
-		return FALSE;
-	}
 	if( CBasePlayerWeapon::AddToPlayer( pPlayer ) )
 	{
 		MESSAGE_BEGIN( MSG_ONE, gmsgWeapPickup, NULL, pPlayer->pev );
