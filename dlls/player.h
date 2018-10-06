@@ -335,6 +335,9 @@ public:
 	struct GGMData gravgunmod_data;
 	virtual void Touch( CBaseEntity *pOther );
 
+	bool m_bBhop;
+	float m_flCheckCvars;
+	bool m_bSitted;
 };
 
 #define AUTOAIM_2DEGREES  0.0348994967025

@@ -655,6 +655,7 @@ void CBaseMonster::Killed( entvars_t *pevAttacker, int iGib )
 	//pev->enemy = ENT( pevAttacker );//why? (sjb)
 
 	m_IdealMonsterState = MONSTERSTATE_DEAD;
+	GlowShellOff();
 }
 
 //

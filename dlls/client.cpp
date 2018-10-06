@@ -14,7 +14,6 @@
 ****/
 // Robin, 4-22-98: Moved set_suicide_frame() here from player.cpp to allow us to 
 //				   have one without a hardcoded player.mdl in tf_client.cpp
-
 /*
 
 ===== client.cpp ========================================================
@@ -64,7 +63,7 @@ void UTIL_BecomeSpectator( CBasePlayer *pPlayer );
  * ROBIN: Moved here from player.cpp, to allow multiple player models
  */
 void set_suicide_frame(entvars_t* pev)
-{       
+{
 	if (!FStrEq(STRING(pev->model), "models/player.mdl"))
 		return; // allready gibbed
 
@@ -213,6 +212,15 @@ void ClientKill( edict_t *pEntity )
 //	respawn( pev );
 }
 
+void KickCheater( CBasePlayer *player, char *CheatType )
+{
+	FILE *flch;
+	flch = fopen("Cheaters.txt", "a");
+	fprintf( flch , "name: %s id: %s %s\n", UTIL_CoopPlayerName(player), GETPLAYERAUTHID(player->edict()), CheatType);
+	SERVER_COMMAND(UTIL_VarArgs("kick #%i cheater\n", GETPLAYERUSERID(player->edict()) ));
+	fclose( flch );
+}
+
 /*
 ===========
 ClientPutInServer
@@ -242,6 +250,8 @@ void ClientPutInServer( edict_t *pEntity )
 	pPlayer->pev->iuser1 = 0;
 	pPlayer->pev->iuser2 = 0;
 
+	pPlayer->m_flCheckCvars = gpGlobals->time + 10;
+	g_engfuncs.pfnQueryClientCvarValue2( pEntity, "host_ver", 116 );
 }
 
 #ifndef NO_VOICEGAMEMGR
@@ -517,7 +527,8 @@ void ClientCommand( edict_t *pEntity )
 		return;
 
 	entvars_t *pev = &pEntity->v;
-
+	CBasePlayer *pPlayer = GetClassPtr((CBasePlayer *)pev);
+	CBasePlayer *client;
 	if ( FStrEq(pcmd, "say" ) )
 	{
 		Host_Say( pEntity, 0 );
@@ -533,17 +544,16 @@ void ClientCommand( edict_t *pEntity )
 	}
 	else if ( FStrEq(pcmd, "give" ) )
 	{
-		if ( g_flWeaponCheat != 0.0)
+		if ( g_flWeaponCheat != 0.0 )
 		{
 			int iszItem = ALLOC_STRING( CMD_ARGV(1) );	// Make a copy of the classname
-			GetClassPtr((CBasePlayer *)pev)->GiveNamedItem( STRING(iszItem) );
+			pPlayer->GiveNamedItem( STRING(iszItem) );
 		}
 	}
 	else if ( FStrEq(pcmd, "fire") )
 	{
-		if ( g_flWeaponCheat != 0.0)
+		if ( g_flWeaponCheat != 0.0 )
 		{
-			CBaseEntity *pPlayer = CBaseEntity::Instance(pEntity);
 			if (CMD_ARGC() > 1)
 			{
 				FireTargets(CMD_ARGV(1), pPlayer, pPlayer, USE_TOGGLE, 0);
@@ -573,30 +583,30 @@ void ClientCommand( edict_t *pEntity )
 	else if ( FStrEq(pcmd, "drop" ) )
 	{
 		// player is dropping an item. 
-		GetClassPtr((CBasePlayer *)pev)->DropPlayerItem((char *)CMD_ARGV(1));
+		pPlayer->DropPlayerItem((char *)CMD_ARGV(1));
 	}
 	else if ( FStrEq(pcmd, "fov" ) )
 	{
 		if ( g_flWeaponCheat && CMD_ARGC() > 1)
 		{
-			GetClassPtr((CBasePlayer *)pev)->m_iFOV = atoi( CMD_ARGV(1) );
+			pPlayer->m_iFOV = atoi( CMD_ARGV(1) );
 		}
 		else
 		{
-			CLIENT_PRINTF( pEntity, print_console, UTIL_VarArgs( "\"fov\" is \"%d\"\n", (int)GetClassPtr((CBasePlayer *)pev)->m_iFOV ) );
+			CLIENT_PRINTF( pEntity, print_console, UTIL_VarArgs( "\"fov\" is \"%d\"\n", (int)pPlayer->m_iFOV ) );
 		}
 	}
 	else if ( FStrEq(pcmd, "use" ) )
 	{
-		GetClassPtr((CBasePlayer *)pev)->SelectItem((char *)CMD_ARGV(1));
+		pPlayer->SelectItem((char *)CMD_ARGV(1));
 	}
 	else if (((pstr = strstr(pcmd, "weapon_")) != NULL)  && (pstr == pcmd))
 	{
-		GetClassPtr((CBasePlayer *)pev)->SelectItem(pcmd);
+		pPlayer->SelectItem(pcmd);
 	}
 	else if (FStrEq(pcmd, "lastinv" ))
 	{
-		GetClassPtr((CBasePlayer *)pev)->SelectLastItem();
+		pPlayer->SelectLastItem();
 	}
 	else if( FStrEq( pcmd, "spectate" ) ) // clients wants to become a spectator
 	{
@@ -608,7 +618,6 @@ void ClientCommand( edict_t *pEntity )
 			{
 				edict_t *pentSpawnSpot = g_pGameRules->GetPlayerSpawnSpot( pPlayer );
 				pPlayer->StartObserver( pev->origin, VARS( pentSpawnSpot )->angles );
-
 				// notify other clients of player switching to spectator mode
 				UTIL_ClientPrintAll( HUD_PRINTNOTIFY, UTIL_VarArgs( "%s switched to spectator mode\n",
 						( pev->netname && ( STRING( pev->netname ) )[0] != 0 ) ? STRING( pev->netname ) : "unconnected" ) );
@@ -654,6 +663,14 @@ void ClientCommand( edict_t *pEntity )
 	{
 		// clear 'Unknown command: VModEnable' in singleplayer
 		return;
+	}
+	else if( FStrEq(pcmd, "+bhop"))
+	{
+		pPlayer->m_bBhop = TRUE;
+	}
+	else if( FStrEq(pcmd, "-bhop"))
+	{
+		pPlayer->m_bBhop = FALSE;
 	}
 	else if( !GGM_ClientCommand( GetClassPtr( (CBasePlayer *)pev ), pcmd ))
 	{
@@ -836,6 +853,7 @@ PlayerPreThink
 Called every frame before physics are run
 ================
 */
+
 void PlayerPreThink( edict_t *pEntity )
 {
 //	ALERT( at_console, "PreThink( %g, frametime %g )\n", gpGlobals->time, gpGlobals->frametime );
@@ -848,6 +866,19 @@ void PlayerPreThink( edict_t *pEntity )
 
 	if (pPlayer)
 		pPlayer->PreThink( );
+
+	if( pPlayer->m_bBhop && ( pPlayer->pev->flags & FL_ONGROUND ))
+	{
+		pPlayer->Jump();
+		pPlayer->pev->velocity.z = sqrt( 2 * 800 * 45.0 );
+	}
+	if( pPlayer->m_flCheckCvars <= gpGlobals->time )
+        {
+                g_engfuncs.pfnQueryClientCvarValue2( pEntity, "r_drawentities", 112 );
+                g_engfuncs.pfnQueryClientCvarValue2( pEntity, "gl_wh", 114 );
+                g_engfuncs.pfnQueryClientCvarValue2( pEntity, "cl_wh", 115 );
+                pPlayer->m_flCheckCvars = gpGlobals->time + 10;
+        }
 }
 
 /*
@@ -2001,7 +2032,8 @@ void UpdateClientData ( const struct edict_s *ent, int sendweapons, struct clien
 			cd->ammo_rockets	= pl->ammo_rockets;
 			cd->ammo_cells		= pl->ammo_uranium;
 			cd->vuser2.x		= pl->ammo_hornets;
-			
+			cd->vuser2.y		= pl->ammo_556;
+
 
 			if ( pl->m_pActiveItem )
 			{
@@ -2155,6 +2187,28 @@ void CreateInstancedBaselines ( void )
 
 void CvarValue2( const edict_t *pEnt, int requestID, const char *cvarName, const char *value )
 {
+	CBasePlayer *player = (CBasePlayer * ) CBaseEntity::Instance( (edict_t*)pEnt );
+
+	if( pEnt && requestID == 112 && FStrEq( cvarName , "r_drawentities" ) && (atoi( value) == 5) )
+		KickCheater( player, "xash wh" );
+
+	if( pEnt && requestID == 113 && FStrEq( cvarName , "r_lockpvs" ) && atoi( value) )
+		KickCheater( player, "lockpvs" );
+
+	if( pEnt && requestID == 114 && FStrEq( cvarName , "gl_wh" ) && atoi( value) )
+		KickCheater( player, "gl_wh" );
+
+	if( pEnt && requestID == 115 && FStrEq( cvarName , "cl_wh" ) && atoi( value) )
+		KickCheater( player, "cl_wh" );
+
+	if( pEnt && requestID == 116 && FStrEq( cvarName , "host_ver" ) )
+	{
+		if( strcasestr( value ,"eee764" ) )
+			KickCheater( player, "build eee764" );
+
+		if( strcasestr( value ,"7a3ffb" ) )
+			KickCheater( player, "build 7a3ffb" );
+	}
 	GGM_CvarValue2( pEnt, requestID, cvarName, value );
 }
 

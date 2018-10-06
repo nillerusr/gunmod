@@ -333,6 +333,24 @@ public:
 		return 700;
 	}
 
-	CBaseEntity* DropItem( const char *pszItemName, const Vector &vecPos, const Vector &vecAng );// drop an item.
+	CBaseEntity* DropItem ( const char *pszItemName, const Vector &vecPos, const Vector &vecAng );// drop an item.
+
+	//
+	// Glowshell effects
+	//
+	void GlowShellOn( Vector color, float flDuration );
+
+	void GlowShellOff( void );
+	void GlowShellUpdate( void );
+
+	float m_glowShellDuration;
+	float m_glowShellStartTime;
+	Vector m_glowShellColor;
+	BOOL m_glowShellUpdate;
+
+	Vector m_prevRenderColor;
+	int m_prevRenderFx;
+	int m_prevRenderMode;
+	int m_prevRenderAmt;
 };
 #endif // BASEMONSTER_H

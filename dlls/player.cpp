@@ -487,11 +487,9 @@ int CBasePlayer::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, fl
 
 		flDamage = flNew;
 	}
-
 	// this cast to INT is critical!!! If a player ends up with 0.5 health, the engine will get that
 	// as an int (zero) and think the player is dead! (this will incite a clientside screentilt, etc)
 	fTookDamage = CBaseMonster::TakeDamage( pevInflictor, pevAttacker, (int)flDamage, bitsDamageType );
-
 	// reset damage time countdown for each type of time based damage player just sustained
 	{
 		for( int i = 0; i < CDMG_TIMEBASED; i++ )
@@ -925,6 +923,7 @@ void CBasePlayer::Killed( entvars_t *pevAttacker, int iGib )
 
 	SetThink( &CBasePlayer::PlayerDeathThink );
 	pev->nextthink = gpGlobals->time + 0.1;
+	GlowShellOff();
 }
 
 // Set the activity based on an event or current state
@@ -1110,6 +1109,7 @@ void CBasePlayer::TabulateAmmo()
 	ammo_rockets = AmmoInventory( GetAmmoIndex( "rockets" ) );
 	ammo_uranium = AmmoInventory( GetAmmoIndex( "uranium" ) );
 	ammo_hornets = AmmoInventory( GetAmmoIndex( "Hornets" ) );
+	ammo_556 = AmmoInventory( GetAmmoIndex( "556" ) );
 }
 
 /*
@@ -1818,6 +1818,7 @@ void CBasePlayer::UpdateStatusBar()
 float g_flSemclipTime;
 void CBasePlayer::PreThink( void )
 {
+	GlowShellUpdate();
 	int buttonsChanged = ( m_afButtonLast ^ pev->button );	// These buttons have changed this frame
 
 	// Debounced button codes for pressed/released
@@ -3407,6 +3408,7 @@ BOOL CBasePlayer::FlashlightIsOn( void )
 {
 	return FBitSet( pev->effects, EF_DIMLIGHT );
 }
+
 
 void CBasePlayer::FlashlightTurnOn( void )
 {
