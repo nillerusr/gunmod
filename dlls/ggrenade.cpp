@@ -49,7 +49,9 @@ void CGrenade::Explode( Vector vecSrc, Vector vecAim )
 // UNDONE: temporary scorching for PreAlpha - find a less sleazy permenant solution.
 void CGrenade::Explode( TraceResult *pTrace, int bitsDamageType )
 {
-	// float flRndSound;// sound randomizer
+	UTIL_ScreenShake( pev->origin, 50.0, 140.0, 1.5, 1200 );
+
+	//float flRndSound;// sound randomizer
 
 	pev->model = iStringNull;//invisible
 	pev->solid = SOLID_NOT;// intangible
@@ -372,7 +374,7 @@ CGrenade *CGrenade::ShootContact( entvars_t *pevOwner, Vector vecStart, Vector v
 	pGrenade->pev->nextthink = gpGlobals->time;
 
 	// Tumble in air
-	pGrenade->pev->avelocity.x = RANDOM_FLOAT( -100, -500 );
+	pGrenade->pev->avelocity = Vector(RANDOM_LONG( -100, -500 ),RANDOM_LONG( -100, 300 ),RANDOM_LONG( -200, 200 ));
 
 	// Explode on contact
 	pGrenade->SetTouch( &CGrenade::ExplodeTouch );
