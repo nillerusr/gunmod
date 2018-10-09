@@ -138,7 +138,7 @@ public class LauncherActivity extends Activity {
 		cmdArgs.setText(mPref.getString("argv","-dev 3 -log"));
 
 		// Uncomment this if you have pak file
-		// ExtractAssets.extractPAK(this, false);
+		ExtractAssets.extractPAK(this, false);
 	}
 
 	private Intent prepareIntent(Intent i)

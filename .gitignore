@@ -17,3 +17,17 @@ cmake_install.cmake
 *.vsxproj
 *.vsproj
 *.sln
+*.apk
+*.bin
+
+android/libs/*
+android/obj
+android/bin
+android/gen
+
+# Private info
+android/local.properties
+
+# Generated
+android/assets/extras.pak
+

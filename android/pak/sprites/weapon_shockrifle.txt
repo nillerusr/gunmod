@@ -1,0 +1,11 @@
+10
+ammo            320 3202 18  86  18  18
+crosshair       320 ofch1  0  24   24  24
+autoaim         320 crosshairs  24  72  24  24
+weapon          320 320op 80   40   80  20
+weapon_s        320 320op 80   60  80  20
+ammo            640 6407 224  48  24  24
+crosshair       640 ofch1  0  24   24  24
+autoaim         640 crosshairs  24  72  24  24
+weapon          640 640op3 0   45   170 45
+weapon_s        640 640op4 0   45   170 45
