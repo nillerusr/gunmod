@@ -8,4 +8,4 @@ APPLICATIONMK_PATH = $(call my-dir)
 XASH3D_CONFIG := $(APPLICATIONMK_PATH)/mod_config.mk
 
 APP_ABI := x86 armeabi-v7a-hard armeabi
-APP_MODULES := server
+APP_MODULES := server client
