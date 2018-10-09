@@ -137,7 +137,6 @@ public class LauncherActivity extends Activity {
 		mPref = getSharedPreferences("mod", 0);
 		cmdArgs.setText(mPref.getString("argv","-dev 3 -log"));
 
-		// Uncomment this if you have pak file
 		ExtractAssets.extractPAK(this, false);
 	}
 
@@ -173,9 +172,7 @@ public class LauncherActivity extends Activity {
 		// replace following line by:
 		/*i.putExtra("gamelibdir", "/data/data/<clientpkgname>/lib");*/
 		i.putExtra("gamelibdir", getFilesDir().getAbsolutePath().replace("/files","/lib"));
-		
-		// if you are using pak file, uncomment this:
-		// i.putExtra("pakfile", getFilesDir().getAbsolutePath() + "/extras.pak");
+		i.putExtra("pakfile", getFilesDir().getAbsolutePath() + "/extras.pak");
 
 		// you may pass extra enviroment variables to game
 		// it is availiable from game code with getenv() function
