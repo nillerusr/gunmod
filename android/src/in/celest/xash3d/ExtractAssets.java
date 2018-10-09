@@ -11,7 +11,7 @@ public class ExtractAssets
 {
 	public static String TAG = "ExtractAssets";
 	static SharedPreferences mPref;
-	public static int PAK_VERSION = 0;
+	public static int PAK_VERSION = 1;
 
     private static int chmod(String path, int mode) {
 		int ret = -1;
