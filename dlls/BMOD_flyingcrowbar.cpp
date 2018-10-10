@@ -141,8 +141,9 @@ void CFlyingCrowbar::SpinTouch( CBaseEntity *pOther )
 	pItem->pev->velocity = tr.vecPlaneNormal * 300;
 
 	// Remove this flying_crowbar from the world.
-	SetThink( &CBaseEntity::SUB_Remove );
-	pev->nextthink = gpGlobals->time + .1;
+	UTIL_Remove( this );
+	//SetThink( &CBaseEntity::SUB_Remove );
+	//pev->nextthink = gpGlobals->time;
 }
 
 void CFlyingCrowbar::BubbleThink( void )
@@ -159,3 +160,4 @@ void CFlyingCrowbar::BubbleThink( void )
 	if (pev->waterlevel)
 		UTIL_BubbleTrail( pev->origin - pev->velocity * 0.1, pev->origin, 1 );
 }
+
