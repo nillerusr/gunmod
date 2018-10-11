@@ -633,9 +633,14 @@ void ClientCommand( edict_t *pEntity )
 			UTIL_ClientPrintAll( HUD_PRINTNOTIFY, UTIL_VarArgs( "%s has left spectator mode\n",
 					( pev->netname && ( STRING( pev->netname ) )[0] != 0 ) ? STRING( pev->netname ) : "unconnected" ) );
 		}*/
-		pPlayer->RemoveAllItems(TRUE);
-		UTIL_BecomeSpectator(pPlayer);
-		pPlayer->gravgunmod_data.m_state = STATE_SPECTATOR;
+		if ( pPlayer->pev->flags & FL_SPECTATOR )
+			UTIL_SpawnPlayer(pPlayer);
+		else
+		{
+			pPlayer->RemoveAllItems(TRUE);
+			UTIL_BecomeSpectator(pPlayer);
+			pPlayer->gravgunmod_data.m_state = STATE_SPECTATOR;
+		}
 	}
 	else if( FStrEq( pcmd, "specmode" ) ) // new spectator mode
 	{
