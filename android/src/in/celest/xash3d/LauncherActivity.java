@@ -46,7 +46,7 @@ public class LauncherActivity extends Activity {
 		launcher.setBackgroundColor(0xFF252525);
 		TextView launcherTitle = new TextView(this);
         LayoutParams titleparams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-		titleparams.setMargins(5,15,5,1);//размеры верхнего layout
+		/* тут*/titleparams.setMargins(5,15,5,1);//размеры верхнего layout
 		LayoutParams buttonparams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
 		buttonparams.setMargins(10,20,10,20);//размеры строки для ввода аргументов
 		launcherTitle.setLayoutParams(titleparams);
@@ -94,14 +94,14 @@ public class LauncherActivity extends Activity {
 		cmdArgs = new EditText(this);
         cmdArgs.setLayoutParams(buttonparams);
 		cmdArgs.setSingleLine(true);
-/*
+
 		if(sdk < 21)
 		{
 			cmdArgs.setBackgroundColor(0xFF353535);
 			cmdArgs.setTextColor(0xFF333333);
 			cmdArgs.setPadding(5,5,5,5);
 		}
-*/
+
 		RelativeLayout panel = new RelativeLayout(this);
 		panel.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 		

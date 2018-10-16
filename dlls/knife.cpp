@@ -237,7 +237,7 @@ void CKnife::SecondaryAttack( void )
 		m_pPlayer->m_iWeaponVolume = flVol * KNIFE_WALLHIT_VOLUME;
 
 		SetThink(&CKnife::Smack);
-		pev->nextthink = gpGlobals->time + 0.2;
+		pev->nextthink = gpGlobals->time + 0.1;
 	}
 	m_flNextSecondaryAttack = gpGlobals->time + 0.8;
 
