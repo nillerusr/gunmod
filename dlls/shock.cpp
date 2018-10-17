@@ -113,7 +113,7 @@ void CShock::Precache()
 	PRECACHE_MODEL("sprites/lgtning.spr");
 	PRECACHE_MODEL("models/shock_effect.mdl");
 	PRECACHE_SOUND("weapons/shock_impact.wav");
-	m_iTrail = PRECACHE_MODEL( "sprites/smoke.spr" );
+	m_iTrail = PRECACHE_MODEL( "sprites/lgtning.spr" );
 }
 
 void CShock::FlyThink()

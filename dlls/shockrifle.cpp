@@ -223,7 +223,7 @@ void CShockrifle::Reload(void)
 
 		m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType]++;
 
-		m_flRechargeTime = gpGlobals->time + 1;
+		m_flRechargeTime = gpGlobals->time + 0.6;
 	}
 }
 
