@@ -69,7 +69,7 @@ public:
 
 	int TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, float flDamage, int bitsDamageType);
 
-	static CGMGrenade *ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vecAngles, Vector vecVelocity, Vector vecAngVel ,float time );
+	static CGMGrenade *ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vecVelocity, Vector vecAngVel ,float time );
 
 	void EXPORT BounceTouch( CBaseEntity *pOther );
 	void EXPORT TumbleThink( void );

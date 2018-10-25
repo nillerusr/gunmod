@@ -221,9 +221,9 @@ void CGrenade::DangerSoundThink( void )
 void CGrenade::BounceTouch( CBaseEntity *pOther )
 {
 	// don't hit the guy that launched this grenade
-/*	if( pOther->edict() == pev->owner )
+	if( pOther->edict() == pev->owner )
 		return;
-*/
+
 	// only do damage if we're moving fairly fast
 	if( m_flNextAttack < gpGlobals->time && pev->velocity.Length() > 100 )
 	{
@@ -353,7 +353,7 @@ void CGrenade::Spawn( void )
 	pev->takedamage = DAMAGE_YES;
 	pev->health = 10;
 	SET_MODEL( ENT( pev ), "models/grenade.mdl" );
-	UTIL_SetSize( pev, Vector( -8, -8, -8 ), Vector( 8, 8, 8 ) );
+	UTIL_SetSize( pev, Vector( 0, 0, 0 ), Vector( 0, 0, 0 ) );
 
 	pev->dmg = 100;
 	m_fRegisteredSound = FALSE;
@@ -390,7 +390,7 @@ CGrenade *CGrenade::ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vec
 	CGrenade *pGrenade = GetClassPtr( (CGrenade *)NULL );
 	pGrenade->Spawn();
 	UTIL_SetOrigin( pGrenade->pev, vecStart );
-	pGrenade->pev->velocity = vecVelocity;
+	//pGrenade->pev->velocity = vecVelocity;
 	pGrenade->pev->angles = UTIL_VecToAngles( pGrenade->pev->velocity );
 	pGrenade->pev->owner = ENT( pevOwner );
 
@@ -582,7 +582,7 @@ void CGMGrenade::Spawn( void )
 	UTIL_SetSize( pev, Vector( 0, 0, 0 ), Vector( 0, 0, 0 ) );
 
 	pev->dmg = 100;
-	pev->health = 10;
+	pev->health = 15;
 	pev->takedamage = DAMAGE_YES;
 	m_fRegisteredSound = FALSE;
 	SetThink( &CGMGrenade::TumbleThink );
@@ -591,7 +591,7 @@ void CGMGrenade::Spawn( void )
 
 }
 
-CGMGrenade *CGMGrenade::ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vecAngles, Vector vecVelocity, Vector vecAngVel ,float time )
+CGMGrenade *CGMGrenade::ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vecVelocity, Vector vecAngVel ,float time )
 {
 	CGMGrenade *pGrenade = GetClassPtr( (CGMGrenade *)NULL );
 	pGrenade->Spawn();
@@ -599,11 +599,11 @@ CGMGrenade *CGMGrenade::ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector
 
 	UTIL_SetOrigin( pGrenade->pev, vecStart );
 	pGrenade->pev->velocity = vecVelocity;
-	pGrenade->pev->avelocity = vecAngVel;
-	pGrenade->pev->angles = vecAngles;
+	//pGrenade->pev->avelocity = vecAngVel;
+	pGrenade->pev->angles = UTIL_VecToAngles( pGrenade->pev->velocity );
 	int m_iTrail = PRECACHE_MODEL( "sprites/smoke.spr" );
 
-	
+/*
 	MESSAGE_BEGIN( MSG_BROADCAST, SVC_TEMPENTITY );
 		WRITE_BYTE( TE_BEAMFOLLOW );
 		WRITE_SHORT((pGrenade->entindex() & 0x0FFF) | (( 1 & 0xF) << 12 ));	// entity
@@ -615,7 +615,7 @@ CGMGrenade *CGMGrenade::ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector
 		WRITE_BYTE( 0 );   // r, g, b
 		WRITE_BYTE( 150 );	// brightness
 	MESSAGE_END();  // move PHS/PVS data sending into here (SEND_ALL, SEND_PVS, SEND_PHS)
-
+*/
 	pGrenade->pev->owner = ENT( pevOwner );
 	pGrenade->SetTouch( &CGMGrenade::BounceTouch );	// Bounce if touched
 
@@ -652,6 +652,7 @@ int CGMGrenade::TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, floa
 	pev->health -= flDamage;
 	pev->velocity = r * flDamage / -7;
 	pev->avelocity.x = pev->avelocity.x*0.5 + RANDOM_FLOAT(100, -100);
+	return CBaseMonster::TakeDamage(pevInflictor, pevAttacker, flDamage, bitsDamageType);
 }
 
 void CGMGrenade::AngleThink( void )
