@@ -61,6 +61,31 @@ public:
 	BOOL m_fRegisteredSound;// whether or not this grenade has issued its DANGER sound to the world sound list yet.
 };
 
+// Gunmod timed grenade 
+class CGMGrenade : public CGrenade
+{
+public:
+	void Spawn( void );
+
+	int TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, float flDamage, int bitsDamageType);
+
+	static CGMGrenade *ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vecAngles, Vector vecVelocity, Vector vecAngVel ,float time );
+
+	void EXPORT BounceTouch( CBaseEntity *pOther );
+	void EXPORT TumbleThink( void );
+	void EXPORT AngleThink( void );
+	BOOL CheckTimer( );
+	//virtual void BounceSound( void );
+	//virtual int BloodColor( void ) { return DONT_BLEED; }
+	//virtual void Killed( entvars_t *pevAttacker, int iGib );
+	/*virtual float TouchGravGun( CBaseEntity *attacker, int stage )
+	{
+		pev->owner = attacker->edict();
+		return 1000;
+	}
+*/
+	BOOL m_fRegisteredSound;// whether or not this grenade has issued its DANGER sound to the world sound list yet.
+};
 // constant items
 #define ITEM_HEALTHKIT		1
 #define ITEM_ANTIDOTE		2
@@ -284,6 +309,7 @@ public:
 	// int		m_iIdSecondary;										// Unique Id for secondary ammo
 	Vector m_SpawnPoint;
 	Vector m_SpawnAngles;
+	EHANDLE m_hLastGrenade;
 #ifndef CLIENT_DLL
 	virtual float TouchGravGun( CBaseEntity *attacker, int stage);
 #endif

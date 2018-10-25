@@ -221,9 +221,9 @@ void CGrenade::DangerSoundThink( void )
 void CGrenade::BounceTouch( CBaseEntity *pOther )
 {
 	// don't hit the guy that launched this grenade
-	if( pOther->edict() == pev->owner )
+/*	if( pOther->edict() == pev->owner )
 		return;
-
+*/
 	// only do damage if we're moving fairly fast
 	if( m_flNextAttack < gpGlobals->time && pev->velocity.Length() > 100 )
 	{
@@ -349,10 +349,11 @@ void CGrenade::Spawn( void )
 	pev->movetype = MOVETYPE_BOUNCE;
 	pev->classname = MAKE_STRING( "grenade" );
 
-	pev->solid = SOLID_BBOX;
-
+	pev->solid = SOLID_SLIDEBOX;
+	pev->takedamage = DAMAGE_YES;
+	pev->health = 10;
 	SET_MODEL( ENT( pev ), "models/grenade.mdl" );
-	UTIL_SetSize( pev, Vector( 0, 0, 0 ), Vector( 0, 0, 0 ) );
+	UTIL_SetSize( pev, Vector( -8, -8, -8 ), Vector( 8, 8, 8 ) );
 
 	pev->dmg = 100;
 	m_fRegisteredSound = FALSE;
@@ -481,5 +482,210 @@ void CGrenade::UseSatchelCharges( entvars_t *pevOwner, SATCHELCODE code )
 		pentFind = FIND_ENTITY_BY_CLASSNAME( pentFind, "grenade" );
 	}
 }
+
+
+// ______GUNMOD GRENADE______
+LINK_ENTITY_TO_CLASS( gm_grenade, CGMGrenade )
+
+void CGMGrenade::BounceTouch( CBaseEntity *pOther )
+{
+	// don't hit the guy that launched this grenade
+	if( pOther->edict() == pev->owner )
+		return;
+
+	float m_flFloorFriction = 0.5;
+	// only do damage if we're moving fairly fast
+	if( m_flNextAttack < gpGlobals->time && pev->velocity.Length() > 100 )
+	{
+		entvars_t *pevOwner = VARS( pev->owner );
+		if( pevOwner )
+		{
+			TraceResult tr = UTIL_GetGlobalTrace();
+			ClearMultiDamage();
+			pOther->TraceAttack( pevOwner, 1, gpGlobals->v_forward, &tr, DMG_CLUB ); 
+			ApplyMultiDamage( pev, pevOwner );
+		}
+		m_flNextAttack = gpGlobals->time + 1.0; // debounce
+	}
+
+	Vector vecTestVelocity;
+	// pev->avelocity = Vector( 300, 300, 300 );
+
+	// this is my heuristic for modulating the grenade velocity because grenades dropped purely vertical
+	// or thrown very far tend to slow down too quickly for me to always catch just by testing velocity. 
+	// trimming the Z velocity a bit seems to help quite a bit.
+	vecTestVelocity = pev->velocity; 
+	vecTestVelocity.z *= 0.45;
+
+	pev->velocity = pev->velocity + pOther->pev->velocity;
+	float dp = cos(M_PI / 180 * UTIL_AngleDiff(UTIL_VecToAngles(pev->velocity).y, pev->angles.y));
+	if (pev->flags & FL_ONGROUND || fabs(pev->velocity.z) < 40)
+	{
+		pev->velocity.x *= fabs(dp) * 0.8 + 0.2;
+		pev->velocity.y *= fabs(dp) * 0.8 + 0.2;
+		pev->velocity.z -= 20;
+		pev->avelocity.x = -dp*pev->velocity.Length()* 1.5;
+		pev->avelocity.y = 0;
+		pev->avelocity.z = 0;
+		pev->angles.z += UTIL_AngleDiff(90, pev->angles.z) * 0.7;
+	}
+	else
+	{
+		pev->velocity.z *= 0.3;
+		pev->velocity.y *= 0.7;
+		pev->velocity.x *= 0.7;
+	}
+		//pev->avelocity.z = pev->avelocity.z*0.5 + RANDOM_FLOAT ( 1, -1 );
+	BounceSound();
+	pev->framerate = pev->velocity.Length() / 200.0;
+	if( pev->framerate > 1.0 )
+		pev->framerate = 1;
+	else if( pev->framerate < 0.2 )
+	{
+		SetThink(&CGMGrenade::AngleThink);
+		pev->nextthink = gpGlobals->time + 0.1;
+		if( pev->angles.z == 0 || pev->angles.z == 90 )
+			pev->framerate = 0;
+		else
+			pev->framerate = 0.2;
+	}
+}
+
+void CGMGrenade::TumbleThink( void )
+{
+	if(CheckTimer())
+		return;
+	if( !IsInWorld() )
+	{
+		UTIL_Remove( this );
+		return;
+	}
+
+	StudioFrameAdvance();
+	pev->nextthink = gpGlobals->time + 0.1;
+
+	if( pev->waterlevel != 0 )
+	{
+		pev->velocity = pev->velocity * 0.5;
+		pev->framerate = 0.2;
+	}
+}
+
+void CGMGrenade::Spawn( void )
+{
+	pev->movetype = MOVETYPE_BOUNCE;
+	pev->classname = MAKE_STRING( "gm_grenade" );
+
+	pev->solid = SOLID_BBOX;
+
+	SET_MODEL( ENT( pev ), "models/grenade.mdl" );
+	UTIL_SetSize( pev, Vector( 0, 0, 0 ), Vector( 0, 0, 0 ) );
+
+	pev->dmg = 100;
+	pev->health = 10;
+	pev->takedamage = DAMAGE_YES;
+	m_fRegisteredSound = FALSE;
+	SetThink( &CGMGrenade::TumbleThink );
+	pev->nextthink = gpGlobals->time;
+
+
+}
+
+CGMGrenade *CGMGrenade::ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vecAngles, Vector vecVelocity, Vector vecAngVel ,float time )
+{
+	CGMGrenade *pGrenade = GetClassPtr( (CGMGrenade *)NULL );
+	pGrenade->Spawn();
+	PRECACHE_MODEL( "sprites/glow02.spr" );
+
+	UTIL_SetOrigin( pGrenade->pev, vecStart );
+	pGrenade->pev->velocity = vecVelocity;
+	pGrenade->pev->avelocity = vecAngVel;
+	pGrenade->pev->angles = vecAngles;
+	int m_iTrail = PRECACHE_MODEL( "sprites/smoke.spr" );
+
+	
+	MESSAGE_BEGIN( MSG_BROADCAST, SVC_TEMPENTITY );
+		WRITE_BYTE( TE_BEAMFOLLOW );
+		WRITE_SHORT((pGrenade->entindex() & 0x0FFF) | (( 1 & 0xF) << 12 ));	// entity
+		WRITE_SHORT( m_iTrail );	// model ( entityIndex & 0x0FFF ) | ( ( pev->sequence & 0xF000 ) << 12 ); 
+		WRITE_BYTE( 3 ); // life
+		WRITE_BYTE( 2 );  // width
+		WRITE_BYTE( 224 );   // r, g, b
+		WRITE_BYTE( 0 );   // r, g, b
+		WRITE_BYTE( 0 );   // r, g, b
+		WRITE_BYTE( 150 );	// brightness
+	MESSAGE_END();  // move PHS/PVS data sending into here (SEND_ALL, SEND_PVS, SEND_PHS)
+
+	pGrenade->pev->owner = ENT( pevOwner );
+	pGrenade->SetTouch( &CGMGrenade::BounceTouch );	// Bounce if touched
+
+	// Take one second off of the desired detonation time and set the think to PreDetonate. PreDetonate
+	// will insert a DANGER sound into the world sound list and delay detonation for one second so that 
+	// the grenade explodes after the exact amount of time specified in the call to ShootTimed(). 
+
+	pGrenade->pev->dmgtime = gpGlobals->time + time;
+
+	if( time < 0.1 )
+	{
+		pGrenade->pev->nextthink = gpGlobals->time;
+		pGrenade->pev->velocity = Vector( 0, 0, 0 );
+	}
+
+	pGrenade->pev->sequence = RANDOM_LONG( 3, 6 );
+	pGrenade->pev->framerate = 1.0;
+
+	// Tumble through the air
+	// pGrenade->pev->avelocity.x = -400;
+
+	pGrenade->pev->friction = 0.8;
+	pGrenade->pev->gravity = 1;
+	SET_MODEL( ENT( pGrenade->pev ), "models/w_grenade.mdl" );
+	pGrenade->pev->dmg = 100;
+
+	return pGrenade;
+}
+
+
+int CGMGrenade::TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, float flDamage, int bitsDamageType)
+{
+	Vector r = (pevInflictor->origin - pev->origin);
+	pev->health -= flDamage;
+	pev->velocity = r * flDamage / -7;
+	pev->avelocity.x = pev->avelocity.x*0.5 + RANDOM_FLOAT(100, -100);
+}
+
+void CGMGrenade::AngleThink( void )
+{
+	if( CheckTimer() )
+		return;
+	pev->angles.z += UTIL_AngleDiff(90, pev->angles.z) * 0.7;
+	if (fabs(UTIL_AngleDiff(90, pev->angles.z)) > 0.1)
+		pev->nextthink = gpGlobals->time + 0.1;
+	else
+		pev->nextthink = pev->dmgtime;
+
+	//ALERT( at_console, "AngleThink: %f %f %f\n", pev->angles.x, pev->angles.y, pev->angles.z );
+	pev->avelocity.y = pev->avelocity.z = 0;
+
+	pev->angles.x = UTIL_AngleMod( pev->angles.x );
+	pev->angles.y = UTIL_AngleMod( pev->angles.y );
+	pev->angles.z = UTIL_AngleMod( pev->angles.z );
+
+}
+BOOL CGMGrenade::CheckTimer()
+{
+	if( pev->dmgtime - 1 < gpGlobals->time )
+	{
+		CSoundEnt::InsertSound( bits_SOUND_DANGER, pev->origin + pev->velocity * ( pev->dmgtime - gpGlobals->time ), 400, 0.1 );
+	}
+
+	if( pev->dmgtime <= gpGlobals->time )
+	{
+		Detonate();
+		return true;
+	}
+	return false;
+}
+
 
 //======================end grenade
