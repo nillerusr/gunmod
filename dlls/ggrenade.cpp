@@ -512,43 +512,40 @@ void CGMGrenade::BounceTouch( CBaseEntity *pOther )
 	// pev->avelocity = Vector( 300, 300, 300 );
 
 	// this is my heuristic for modulating the grenade velocity because grenades dropped purely vertical
-	// or thrown very far tend to slow down too quickly for me to always catch just by testing velocity. 
+	// or thrown very far tend to slow down too quickly for me to always catch just by testing velocity.
 	// trimming the Z velocity a bit seems to help quite a bit.
-	vecTestVelocity = pev->velocity; 
+	vecTestVelocity = pev->velocity;
 	vecTestVelocity.z *= 0.45;
 
-	pev->velocity = pev->velocity + pOther->pev->velocity;
-	float dp = cos(M_PI / 180 * UTIL_AngleDiff(UTIL_VecToAngles(pev->velocity).y, pev->angles.y));
-	if (pev->flags & FL_ONGROUND || fabs(pev->velocity.z) < 40)
+	if( !m_fRegisteredSound && vecTestVelocity.Length() <= 60 )
 	{
-		pev->velocity.x *= fabs(dp) * 0.8 + 0.2;
-		pev->velocity.y *= fabs(dp) * 0.8 + 0.2;
-		pev->velocity.z -= 20;
-		pev->avelocity.x = -dp*pev->velocity.Length()* 1.5;
-		pev->avelocity.y = 0;
-		pev->avelocity.z = 0;
-		pev->angles.z += UTIL_AngleDiff(90, pev->angles.z) * 0.7;
+		//ALERT( at_console, "Grenade Registered!: %f\n", vecTestVelocity.Length() );
+
+		// grenade is moving really slow. It's probably very close to where it will ultimately stop moving.
+		// go ahead and emit the danger sound.
+
+		// register a radius louder than the explosion, so we make sure everyone gets out of the way
+		CSoundEnt::InsertSound( bits_SOUND_DANGER, pev->origin, (int)( pev->dmg / 0.4 ), 0.3 );
+		m_fRegisteredSound = TRUE;
 	}
-	else
+
+	if( pev->flags & FL_ONGROUND )
 	{
-		pev->velocity.z *= 0.3;
-		pev->velocity.y *= 0.7;
-		pev->velocity.x *= 0.7;
+		// add a bit of static friction
+		pev->velocity = pev->velocity * 0.8;
+
+		pev->sequence = RANDOM_LONG( 1, 1 );
 	}
-		//pev->avelocity.z = pev->avelocity.z*0.5 + RANDOM_FLOAT ( 1, -1 );
-	BounceSound();
+ 	else
+	{
+		// play bounce sound
+		BounceSound();
+	}
 	pev->framerate = pev->velocity.Length() / 200.0;
 	if( pev->framerate > 1.0 )
-		pev->framerate = 1;
-	else if( pev->framerate < 0.2 )
-	{
-		SetThink(&CGMGrenade::AngleThink);
-		pev->nextthink = gpGlobals->time + 0.1;
-		if( pev->angles.z == 0 || pev->angles.z == 90 )
-			pev->framerate = 0;
-		else
-			pev->framerate = 0.2;
-	}
+ 		pev->framerate = 1;
+	else if( pev->framerate < 0.5 )
+		pev->framerate = 0;
 }
 
 void CGMGrenade::TumbleThink( void )
@@ -655,24 +652,6 @@ int CGMGrenade::TakeDamage(entvars_t* pevInflictor, entvars_t* pevAttacker, floa
 	return CBaseMonster::TakeDamage(pevInflictor, pevAttacker, flDamage, bitsDamageType);
 }
 
-void CGMGrenade::AngleThink( void )
-{
-	if( CheckTimer() )
-		return;
-	pev->angles.z += UTIL_AngleDiff(90, pev->angles.z) * 0.7;
-	if (fabs(UTIL_AngleDiff(90, pev->angles.z)) > 0.1)
-		pev->nextthink = gpGlobals->time + 0.1;
-	else
-		pev->nextthink = pev->dmgtime;
-
-	//ALERT( at_console, "AngleThink: %f %f %f\n", pev->angles.x, pev->angles.y, pev->angles.z );
-	pev->avelocity.y = pev->avelocity.z = 0;
-
-	pev->angles.x = UTIL_AngleMod( pev->angles.x );
-	pev->angles.y = UTIL_AngleMod( pev->angles.y );
-	pev->angles.z = UTIL_AngleMod( pev->angles.z );
-
-}
 BOOL CGMGrenade::CheckTimer()
 {
 	if( pev->dmgtime - 1 < gpGlobals->time )

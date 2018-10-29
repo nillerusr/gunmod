@@ -73,17 +73,7 @@ public:
 
 	void EXPORT BounceTouch( CBaseEntity *pOther );
 	void EXPORT TumbleThink( void );
-	void EXPORT AngleThink( void );
-	BOOL CheckTimer( );
-	//virtual void BounceSound( void );
-	//virtual int BloodColor( void ) { return DONT_BLEED; }
-	//virtual void Killed( entvars_t *pevAttacker, int iGib );
-	/*virtual float TouchGravGun( CBaseEntity *attacker, int stage )
-	{
-		pev->owner = attacker->edict();
-		return 1000;
-	}
-*/
+	BOOL CheckTimer();
 	BOOL m_fRegisteredSound;// whether or not this grenade has issued its DANGER sound to the world sound list yet.
 };
 // constant items
