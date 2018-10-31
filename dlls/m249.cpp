@@ -207,7 +207,8 @@ void CM249::Reload(void)
 	if (m_pPlayer->ammo_556 <= 0)
 		return;
 
-	DefaultReload(50, M249_RELOAD1, 2.5);
+	DefaultReload(50, M249_RELOAD1, 3.85);
+	m_flTimeWeaponIdle = gpGlobals->time + 4;
 }
 
 

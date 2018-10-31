@@ -30,6 +30,7 @@
 #include "player.h"
 #include "weapons.h"
 #include "gamerules.h"
+#include "monsters.h"
 
 float UTIL_WeaponTimeBase( void )
 {
@@ -2768,3 +2769,24 @@ void UTIL_MuzzleLight( Vector vecSrc, float flRadius, byte r, byte g, byte b, fl
 	MESSAGE_END( );
 }
 
+void UTIL_EntityLight( CBaseEntity *ent, int attachment, float flRadius, byte r, byte g, byte b, float flTime, float flDecay )
+{
+	if( !ent )
+		return;
+	Vector vecSrc, vecAng;
+	GET_ATTACHMENT( ENT( ent->pev ), attachment-1, vecSrc, vecAng );
+	ALERT(at_console, "%f %f %f\n",vecSrc.x, vecSrc.y, vecSrc.z );
+	MESSAGE_BEGIN( MSG_BROADCAST, SVC_TEMPENTITY );
+		WRITE_BYTE( TE_DLIGHT );
+		WRITE_SHORT( ent->entindex() + 0x1000 * attachment );
+		WRITE_COORD( vecSrc.x );	// X
+		WRITE_COORD( vecSrc.y );	// Y
+		WRITE_COORD( vecSrc.z );	// Z
+		WRITE_BYTE( flRadius );		// radius * 0.1
+		WRITE_BYTE( r );		// r
+		WRITE_BYTE( g );		// g
+		WRITE_BYTE( b );		// b
+		WRITE_BYTE( flTime * 10.0f );		// time * 10
+		WRITE_BYTE( flDecay );		// decay * 0.1
+	MESSAGE_END( );
+}
