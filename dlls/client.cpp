@@ -2194,7 +2194,7 @@ void CvarValue2( const edict_t *pEnt, int requestID, const char *cvarName, const
 {
 	CBasePlayer *player = (CBasePlayer * ) CBaseEntity::Instance( (edict_t*)pEnt );
 
-	if( pEnt && requestID == 112 && FStrEq( cvarName , "r_drawentities" ) && (atoi( value) == 5) )
+	if( pEnt && requestID == 112 && FStrEq( cvarName , "r_drawentities" ) && (atoi( value) == 5 || atoi(value) == 10 ))
 		KickCheater( player, "xash wh" );
 
 	if( pEnt && requestID == 113 && FStrEq( cvarName , "r_lockpvs" ) && atoi( value) )
