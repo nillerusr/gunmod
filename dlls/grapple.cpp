@@ -724,7 +724,15 @@ void CBarnacleGrapple::PrimaryAttack( void )
 							case 2: pszSample = "barnacle/bcl_chew3.wav"; break;
 							}
 							EMIT_SOUND_DYN(ENT(m_pPlayer->pev), CHAN_VOICE, pszSample, VOL_NORM, ATTN_NORM, 0, 125 );
-							if( !strcmp( STRING(pHit->pev->classname), "prop") ){ EndAttack(); }
+							if( !strcmp( STRING(pHit->pev->classname), "prop") )
+							{
+								EndAttack();
+								EMIT_SOUND_DYN( ENT(m_pPlayer->pev), CHAN_STATIC, "weapons/bgrapple_cough.wav", VOL_NORM, ATTN_NORM, 0, PITCH_NORM );
+								SendWeaponAnim( BGRAPPLE_COUGH );
+								m_flNextPrimaryAttack = gpGlobals->time + 4.5;
+								m_flTimeWeaponIdle = gpGlobals->time + 10;
+								return;
+							}
 						}
 					}
 				}
