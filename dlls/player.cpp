@@ -975,7 +975,7 @@ void CBasePlayer::SetAnimation( PLAYER_ANIM playerAnim )
 			ASSERT( ( m_pActiveItem && FClassnameIs( m_pActiveItem->pev, "weapon_grapple" ) ) == TRUE );
 			m_IdealActivity = ACT_SWIM;
 		}
-		if( !FBitSet( pev->flags, FL_ONGROUND ) && ( m_Activity == ACT_HOP || m_Activity == ACT_LEAP ) )	// Still jumping
+		else if( !FBitSet( pev->flags, FL_ONGROUND ) && ( m_Activity == ACT_HOP || m_Activity == ACT_LEAP ) )	// Still jumping
 		{
 			m_IdealActivity = m_Activity;
 		}
