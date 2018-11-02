@@ -98,7 +98,7 @@ const char *grapple_medium[] =
 	"monster_alien_controller",
 	"monster_alien_slave",
 	"monster_barney",
-	"monster_bullchicken",,
+	"monster_bullchicken",
 	"monster_houndeye",
 	"monster_human_assassin",
 	"monster_human_grunt",
