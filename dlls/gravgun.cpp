@@ -198,13 +198,13 @@ void CGravGun::Holster(int skiplocal /* = 0 */)
 int CGravGun::GetItemInfo(ItemInfo *p)
 {
 	p->pszName = STRING(pev->classname);
-p->pszAmmo1 = NULL;
+	p->pszAmmo1 = NULL;
 	p->iMaxAmmo1 = -1;
 	p->pszAmmo2 = NULL;
 	p->iMaxAmmo2 = -1;
 	p->iMaxClip = WEAPON_NOCLIP;
 	p->iSlot = 0;
-	p->iPosition = 2;
+	p->iPosition = 3;
 	p->iId = m_iId = WEAPON_GRAVGUN;
 	p->iFlags = 0;
 	p->iWeight = 20;

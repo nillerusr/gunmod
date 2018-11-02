@@ -970,6 +970,11 @@ void CBasePlayer::SetAnimation( PLAYER_ANIM playerAnim )
 		break;
 	case PLAYER_IDLE:
 	case PLAYER_WALK:
+		if( ( m_afPhysicsFlags & PFLAG_LATCHING ) && ( pev->velocity.Length() > 100 ) )
+		{
+			ASSERT( ( m_pActiveItem && FClassnameIs( m_pActiveItem->pev, "weapon_grapple" ) ) == TRUE );
+			m_IdealActivity = ACT_SWIM;
+		}
 		if( !FBitSet( pev->flags, FL_ONGROUND ) && ( m_Activity == ACT_HOP || m_Activity == ACT_LEAP ) )	// Still jumping
 		{
 			m_IdealActivity = m_Activity;

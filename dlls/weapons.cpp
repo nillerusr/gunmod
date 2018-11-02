@@ -367,6 +367,7 @@ void W_Precache( void )
 		UTIL_PrecacheOtherWeapon( "weapon_knife" );
 		UTIL_PrecacheOtherWeapon( "weapon_shockrifle" );
 		UTIL_PrecacheOtherWeapon( "weapon_displacer" );
+		UTIL_PrecacheOtherWeapon( "weapon_grapple" );
 	}
 
 #if !defined( OEM_BUILD ) && !defined( HLDEMO_BUILD )
