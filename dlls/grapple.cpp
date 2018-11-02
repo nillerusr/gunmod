@@ -81,16 +81,16 @@ const char *grapple_small[] =
 {
 	"monster_bloater",
 	"monster_snark",
-	"monster_shockroach",
 	"monster_rat",
-	"monster_alien_babyvoltigore",
 	"monster_babycrab",
 	"monster_cockroach",
 	"monster_flyer_flock",
 	"monster_headcrab",
 	"monster_leech",
-	"monster_penguin",
-	"prop"
+	"prop",
+	"monster_satchel",
+	"monster_tripmine",
+	"grenade"
 };
 
 const char *grapple_medium[] = 
@@ -98,45 +98,27 @@ const char *grapple_medium[] =
 	"monster_alien_controller",
 	"monster_alien_slave",
 	"monster_barney",
-	"monster_bullchicken",
-	"monster_cleansuit_scientist",
+	"monster_bullchicken",,
 	"monster_houndeye",
 	"monster_human_assassin",
 	"monster_human_grunt",
-	"monster_human_grunt_ally",
-	"monster_human_medic_ally",
-	"monster_human_torch_ally",
-	"monster_male_assassin",
-	"monster_otis",
-	"monster_pitdrone",
 	"monster_scientist",
 	"monster_zombie",
-	"monster_zombie_barney",
-	"monster_zombie_soldier"
 };
 
 const char *grapple_large[] = 
 {
 	"monster_alien_grunt",
-	"monster_alien_voltigore",
-	"monster_assassin_repel",
-	"monster_grunt_ally_repel",
 	"monster_bigmomma",
 	"monster_gargantua",
-	"monster_geneworm",
-	"monster_gonome",
 	"monster_grunt_repel",
 	"monster_ichthyosaur",
-	"monster_nihilanth",
-	"monster_pitworm",
-	"monster_pitworm_up",
-	"monster_shocktrooper"
+	"monster_nihilanth"
 };
 
 const char *grapple_fixed[] = 
 {
 	"monster_barnacle",
-	"monster_sitting_cleansuit_scientist",
 	"monster_sitting_scientist",
 	"monster_tentacle",
 	"ammo_spore"
@@ -517,7 +499,7 @@ void CBarnacleGrapple::PrimaryAttack( void )
 		{
 			CBaseEntity* pTarget = m_pTip->GetGrappleTarget();
 
-			if( !pTarget )
+			if( !pTarget || ( pTarget->IsPlayer() || !strcmp( STRING(pTarget->pev->classname), "prop")) && !pTarget->IsAlive() )
 			{
 				EndAttack();
 				return;
@@ -742,6 +724,7 @@ void CBarnacleGrapple::PrimaryAttack( void )
 							case 2: pszSample = "barnacle/bcl_chew3.wav"; break;
 							}
 							EMIT_SOUND_DYN(ENT(m_pPlayer->pev), CHAN_VOICE, pszSample, VOL_NORM, ATTN_NORM, 0, 125 );
+							if( !strcmp( STRING(pHit->pev->classname), "prop") ){ EndAttack(); }
 						}
 					}
 				}
