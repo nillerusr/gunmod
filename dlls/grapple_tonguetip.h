@@ -20,7 +20,7 @@ enum CheckTarget
 	SMALL			= 1,
 	MEDIUM			= 2,
 	LARGE			= 3,
-	FIXED			= 4,
+	FIXED2			= 4,
 };
 
 class CBarnacleGrappleTip : public CBaseEntity

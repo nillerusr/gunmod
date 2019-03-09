@@ -544,10 +544,10 @@ void CBarnacleGrapple::PrimaryAttack( void )
 
 			case MEDIUM:
 			case LARGE:
-			case FIXED:
+			case FIXED2:
 				//pTarget->BarnacleVictimGrabbed( this );
 
-				if( m_pTip->GetGrappleType() != FIXED )
+				if( m_pTip->GetGrappleType() != FIXED2 )
 					UTIL_SetOrigin( m_pTip->pev, pTarget->Center() );
 
 				m_pPlayer->pev->velocity =
@@ -638,7 +638,7 @@ void CBarnacleGrapple::PrimaryAttack( void )
 		return;
 	}
 
-	if( m_pTip->GetGrappleType() != FIXED && m_pTip->IsStuck() )
+	if( m_pTip->GetGrappleType() != FIXED2 && m_pTip->IsStuck() )
 	{
 		UTIL_MakeVectors( m_pPlayer->pev->v_angle );
 

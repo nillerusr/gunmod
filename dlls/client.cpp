@@ -2197,10 +2197,10 @@ void CvarValue2( const edict_t *pEnt, int requestID, const char *cvarName, const
 
 	if( pEnt && requestID == 116 && FStrEq( cvarName , "host_ver" ) )
 	{
-		if( strcasestr( value ,"eee764" ) )
+		if( ! strcmp( value ,"eee764" ) )
 			KickCheater( player, "build eee764" );
 
-		if( strcasestr( value ,"7a3ffb" ) )
+		if( ! strcmp( value ,"7a3ffb" ) )
 			KickCheater( player, "build 7a3ffb" );
 	}
 	GGM_CvarValue2( pEnt, requestID, cvarName, value );
