@@ -736,7 +736,7 @@ void CFuncTrain::Next( void )
 		return;
 	}
 
-	if( pTarg->GetNextTarget() == pTarg )
+	if( pTarg->GetNextTarget() == pTarg && (pTarg->pev->origin - pev->origin).Length() < 0.01 )
 	{
 		ALERT(at_error, "train short loop!");
 		return;
@@ -764,7 +764,7 @@ void CFuncTrain::Next( void )
 		SetBits( pev->effects, EF_NOINTERP );
 		UTIL_SetOrigin( pev, pTarg->pev->origin - ( pev->mins + pev->maxs ) * 0.5 );
 		Wait(); // Get on with doing the next path corner.
-		if( mp_coop_changelevel.value )
+		if( mp_coop.value )
 			pev->iuser1++; // Invalidate state for coop
 	}
 	else
@@ -1150,7 +1150,7 @@ void CFuncTrackTrain::Next( void )
 		int count = UTIL_EntitiesInBox( &pList, 1, mins, maxs, FL_ONGROUND );
 		if( !count || !pList->IsPlayer() )
 		{
-			pev->velocity = g_vecZero;
+			pev->velocity = pev->avelocity = g_vecZero;
 			NextThink( pev->ltime + time, TRUE );
 			return;
 		}

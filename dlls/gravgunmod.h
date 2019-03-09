@@ -11,6 +11,9 @@ extern cvar_t cvar_allow_bigcock;
 extern cvar_t cvar_allow_gateofbabylon;
 extern cvar_t cvar_wresptime;
 extern cvar_t cvar_iresptime;
+extern cvar_t mp_gravgun_players;
+extern cvar_t mp_skipdefaults;
+extern cvar_t mp_unduck;
 
 extern cvar_t cvar_gibtime;
 extern cvar_t cvar_hgibcount;
@@ -47,7 +50,9 @@ extern cvar_t mp_maxtentdist;
 extern cvar_t mp_maxdecals;
 
 void GGM_RegisterCVars( void );
-void Ent_RunGC( bool common, bool enttools, const char *userid, const char *pattern = NULL );
+#define GC_COMMON (1<<0)
+#define GC_ENTTOOLS (1<<1)
+void Ent_RunGC( int flags, const char *userid, const char *pattern = NULL );
 bool Q_stricmpext( const char *pattern, const char *text );
 class CBasePlayer;
 void GGM_ClientPutinServer(edict_t *pEntity , CBasePlayer *pPlayer);
@@ -55,7 +60,7 @@ void GGM_ClientFirstSpawn(CBasePlayer *pPlayer );
 const char *GGM_GetPlayerID( edict_t *player );
 edict_t *GGM_PlayerByID( const char *id );
 void GGM_Say( edict_t *pEntity );
-bool GGM_ClientCommand( CBasePlayer *player, const char *pcmd );
+bool GGM_ClientCommand( CBasePlayer *player, const char *pCmd );
 void GGM_InitialMenus( CBasePlayer *pPlayer );
 void GGM_CvarValue2( const edict_t *pEnt, int requestID, const char *cvarName, const char *value );
 
@@ -66,7 +71,8 @@ enum PlayerState
 	STATE_SPECTATOR_BEGIN,
 	STATE_SPAWNED,
 	STATE_SPECTATOR,
-	STATE_POINT_SELECT
+	STATE_POINT_SELECT,
+	STATE_LOAD_FIX
 };
 
 enum PlayerMenuState
@@ -84,15 +90,15 @@ class GGM_PlayerMenu
 {
 	struct GGM_MenuItem
 	{
-		char command[256];
-		char name[32];
-	} m_items[5];
+		char szCommand[256];
+		char szName[32];
+	} m_rgItems[5];
 	int m_iCount;
 	char m_sTitle[32];
 	bool m_fShow;
 
 public:
-	CBasePlayer *pPlayer;
+	CBasePlayer *m_pPlayer;
 	bool MenuSelect( int select );
 	GGM_PlayerMenu &SetTitle( const char *title );
 	GGM_PlayerMenu &New( const char *title, bool force = true );
@@ -101,21 +107,104 @@ public:
 	void Show();
 };
 
+// full player map-independed position data
+struct GGMPosition
+{
+	Vector vecOrigin;
+	Vector vecAngles;
+	char szMapName[32];
+	char szTrainGlobal[32];
+	Vector vecTrainOffset;
+	Vector vecTrainAngles;
+	bool fDuck;
+};
 
+// login record
+// this maps pair of nickname and uid to registration
+struct GGMLogin
+{
+	struct GGMLogin *pNext;
+	struct {
+	char szUID[33];
+	char szName[32];
+	} f;
+	struct GGMPlayerState *pState;
+};
+
+// registration and game stats
+// saved on every change to separate file
+// but only for registered users
+struct GGMPersist
+{
+
+	/// todo:salt/hash
+	char szPassword[33];
+};
+
+// complete player state
+// saved on save request, but kept in runtime
+struct GGMTempState
+{
+	float flHealth;
+	float flBattery;
+	int iFrags;
+	int iDeaths;
+	char rgszWeapons[MAX_WEAPONS][32];// weapon names
+	char rgiClip[MAX_WEAPONS];// ammo names
+	int	rgszAmmo[MAX_AMMO_SLOTS];// ammo quantities
+	char szWeaponName[32];
+	GGMPosition pos;
+	bool fIsTempBanned; // prevent some actions
+};
+
+// state which every spawned player has
+struct GGMPlayerState
+{
+	struct GGMPlayerState *pNext;
+	struct GGMPersist p;
+	struct GGMTempState t;
+	bool fRegistered;
+	bool fNeedWrite;
+	// uid or nickname
+	char szUID[33];
+};
+
+// player ggm data. additional struct for CBasePlayer
 struct GGMData
 {
-	float m_flSpawnTime;
-	PlayerState m_state;
-	bool m_fTouchMenu;
-	int m_iMenuState;
-	int m_iLocalConfirm;
-	int m_iConfirmKey;
-	float m_flEntScope;
-	float m_flEntTime;
-	char uid[33];
+	float flSpawnTime;
+	PlayerState iState;
+	bool fTouchMenu;
+	int iLocalConfirm;
+	edict_t *pChangeLevel;
+	float flEntScore;
+	float flEntTime;
 	GGM_PlayerMenu menu;
-	bool touch_loading;
+	bool fTouchLoading;
+	struct GGMPlayerState *pState;
+	char fRegisterInput[32];
 };
+
+struct GGMPlayerState *GGM_GetState(const char *uid, const char *name);
+bool GGM_RestoreState( CBasePlayer *pPlayer );
+bool GGM_RestorePosition( CBasePlayer *pPlayer, struct GGMPosition *pos );
+void GGM_SavePosition( CBasePlayer *pPlayer, struct GGMPosition *pos );
+void GGM_SaveState( CBasePlayer *pPlayer );
+bool GGM_PlayerSpawn( CBasePlayer *pPlayer );
+const char *GGM_GetAuthID( CBasePlayer *pPlayer );
+void GGM_ServerActivate( void );
+void COOP_SetupLandmarkTransition( const char *szNextMap, const char *szNextSpot, Vector vecLandmarkOffset, struct GGMPosition *pPos );
+void GGM_ClearLists( void );
+void GGM_Save( const char *savename );
+void GGM_Load( const char *savename );
+const char *GGM_PlayerName( CBaseEntity *pPlayer );
+bool GGM_IsTempBanned( CBaseEntity *plr );
+void GGM_TempBan( CBaseEntity *pEnt );
+int GGM_ChangelevelVote( CBasePlayer *pPlayer, edict_t *pTrigger, const char *pszMapName );
+void GGM_ClearVote( void );
+void GGM_StartVoteCommand( CBasePlayer *pPlayer, const char *pszCommand, const char *pszMessage );
+void GGM_ConnectSaveBot( void );
+int GGM_ConnectionlessPacket( const struct netadr_s *net_from, const char *args, char *response_buffer, int *response_buffer_size );
 
 #endif // GRAVGUNMOD_H
 

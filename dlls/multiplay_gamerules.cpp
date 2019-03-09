@@ -414,6 +414,7 @@ BOOL CHalfLifeMultiplay::ClientConnected( edict_t *pEntity, const char *pszName,
 extern int gmsgSayText;
 extern int gmsgGameMode;
 
+
 void ClientPutInServer( edict_t *client );
 
 void CHalfLifeMultiplay::UpdateGameMode( CBasePlayer *pPlayer )
@@ -485,10 +486,10 @@ void CHalfLifeMultiplay::InitHUD( CBasePlayer *pl )
 		MESSAGE_END();
 	}
 
-	if( pl->gravgunmod_data.m_state <= STATE_CONNECTED )
+	if( pl->m_ggm.iState <= STATE_CONNECTED )
 		ClientPutInServer( pl->edict() );
 
-	if( pl->gravgunmod_data.m_state == STATE_SPECTATOR_BEGIN && !pl->gravgunmod_data.m_fTouchMenu )
+	if( pl->m_ggm.iState == STATE_SPECTATOR_BEGIN && !pl->m_ggm.fTouchMenu )
 		GGM_InitialMenus( pl );
 
 }
@@ -562,10 +563,20 @@ BOOL CHalfLifeMultiplay::FPlayerCanTakeDamage( CBasePlayer *pPlayer, CBaseEntity
 //=========================================================
 void CHalfLifeMultiplay::PlayerThink( CBasePlayer *pPlayer )
 {
-	if( !mp_coop.value && pPlayer->gravgunmod_data.m_state == STATE_SPECTATOR_BEGIN )
+	if( pPlayer->m_ggm.iState == STATE_LOAD_FIX )
+		if( pPlayer->m_afButtonPressed & ( IN_DUCK | IN_ATTACK | IN_ATTACK2 | IN_USE | IN_JUMP ) )
+		{
+			CLIENT_COMMAND( pPlayer->edict(), "reconnect\n" );
+			pPlayer->m_ggm.iState = STATE_UNINITIALIZED;
+			pPlayer->m_ggm.pState = NULL;
+			pPlayer->m_afButtonPressed = 0;
+			return;
+		}
+
+	if( !mp_coop.value && pPlayer->m_ggm.iState == STATE_SPECTATOR_BEGIN )
 		if( pPlayer->m_afButtonPressed & ( IN_DUCK | IN_ATTACK | IN_ATTACK2 | IN_USE | IN_JUMP ) )
 			UTIL_SpawnPlayer( pPlayer );
-	if( pPlayer->gravgunmod_data.m_state == STATE_UNINITIALIZED )
+	if( pPlayer->m_ggm.iState == STATE_UNINITIALIZED )
 		if( pPlayer->m_afButtonPressed || pPlayer->pev->button )
 		{
 			ClientPutInServer( pPlayer->edict() );
@@ -575,7 +586,7 @@ void CHalfLifeMultiplay::PlayerThink( CBasePlayer *pPlayer )
 			return;
 		}
 
-	if( pPlayer->gravgunmod_data.m_state == STATE_POINT_SELECT )
+	if( pPlayer->m_ggm.iState == STATE_POINT_SELECT )
 	{
 		if( pPlayer->m_afButtonPressed & ( IN_DUCK | IN_ATTACK | IN_ATTACK2 | IN_USE | IN_JUMP ) )
 			pPlayer->Spawn();
@@ -598,41 +609,13 @@ extern EHANDLE				g_pLastSpawn;
 //=========================================================
 void CHalfLifeMultiplay::PlayerSpawn( CBasePlayer *pPlayer )
 {
-	BOOL		addDefault;
+	BOOL		addDefault = !mp_skipdefaults.value;
 	CBaseEntity	*pWeaponEntity = NULL;
 
-	if( pPlayer->gravgunmod_data.m_state == STATE_UNINITIALIZED )
-	{
-		ClientPutInServer( pPlayer->edict() );
+	if( GGM_PlayerSpawn( pPlayer ) )
 		return;
-	}
-
-	if( mp_spectator.value && pPlayer->gravgunmod_data.m_state == STATE_CONNECTED )
-	{
-		pPlayer->gravgunmod_data.m_state = STATE_SPECTATOR_BEGIN;
-		pPlayer->RemoveAllItems( TRUE );
-		UTIL_BecomeSpectator( pPlayer );
-		return;
-	}
-
-	if( mp_coop_changelevel.value && pPlayer->gravgunmod_data.m_state == STATE_POINT_SELECT && !(pPlayer->pev->flags & FL_SPECTATOR) )
-	{
-		pPlayer->RemoveAllItems( TRUE );
-		UTIL_BecomeSpectator( pPlayer );
-		return;
-	}
-
-	if( pPlayer->pev->flags & FL_SPECTATOR )
-		return;
-
-	if( !mp_coop_changelevel.value )
-		pPlayer->gravgunmod_data.m_state = STATE_SPAWNED;
-
-	g_fPause = false;
 
 	pPlayer->pev->weapons |= ( 1 << WEAPON_SUIT );
-
-	addDefault = !mp_skipdefaults.value;
 
 	while( ( pWeaponEntity = UTIL_FindEntityByClassname( pWeaponEntity, "game_player_equip" ) ) )
 	{
@@ -640,19 +623,14 @@ void CHalfLifeMultiplay::PlayerSpawn( CBasePlayer *pPlayer )
 		addDefault = FALSE;
 	}
 
-	if( pPlayer->gravgunmod_data.m_state != STATE_SPAWNED )
-		return;
-
-	if( addDefault )
+	if( !mp_coop.value )
 	{
 		GM_AddWeapons(pPlayer);
 		GM_AddAmmo(pPlayer);
 	}
-
-	if( mp_coop_changelevel.value )
+	else
 	{
-//		pPlayer->GiveNamedItem( "item_suit" );
-		g_WeaponList.GiveToPlayer(pPlayer);
+		COOP_GiveDefaultWeapons( pPlayer );
 	}
 }
 
@@ -964,7 +942,7 @@ void CHalfLifeMultiplay::DeathNotice( CBasePlayer *pVictim, entvars_t *pKiller, 
 void CHalfLifeMultiplay::PlayerGotWeapon( CBasePlayer *pPlayer, CBasePlayerItem *pWeapon )
 {
 	if(mp_coop.value)
-		g_WeaponList.AddWeapon(STRING(pWeapon->pev->classname));
+		COOP_AddDefaultWeapon(STRING(pWeapon->pev->classname));
 }
 
 //=========================================================
@@ -1074,7 +1052,7 @@ BOOL CHalfLifeMultiplay::CanHaveItem( CBasePlayer *pPlayer, CItem *pItem )
 void CHalfLifeMultiplay::PlayerGotItem( CBasePlayer *pPlayer, CItem *pItem )
 {
 	if(mp_coop.value)
-		g_WeaponList.AddWeapon(STRING(pItem->pev->classname));
+		COOP_AddDefaultWeapon(STRING(pItem->pev->classname));
 }
 
 //=========================================================
@@ -1112,7 +1090,7 @@ void CHalfLifeMultiplay::PlayerGotAmmo( CBasePlayer *pPlayer, char *szName, int 
 {
 
 	if(mp_coop.value)
-		g_WeaponList.AddWeapon(szName);
+		COOP_AddDefaultWeapon(szName);
 }
 
 //=========================================================
@@ -1179,7 +1157,7 @@ int CHalfLifeMultiplay::DeadPlayerAmmo( CBasePlayer *pPlayer )
 
 edict_t *CHalfLifeMultiplay::GetPlayerSpawnSpot( CBasePlayer *pPlayer )
 {
-	edict_t *pentSpawnSpot = CGameRules::GetPlayerSpawnSpot( pPlayer );	
+	edict_t *pentSpawnSpot = CGameRules::GetPlayerSpawnSpot( pPlayer );
 	if( IsMultiplayer() && pentSpawnSpot && pentSpawnSpot->v.target )
 	{
 		FireTargets( STRING( pentSpawnSpot->v.target ), pPlayer, pPlayer, USE_TOGGLE, 0 );

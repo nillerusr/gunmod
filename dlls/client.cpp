@@ -87,9 +87,9 @@ BOOL ClientConnect( edict_t *pEntity, const char *pszName, const char *pszAddres
 	if( mp_coop.value && pEntity )
 	{
 		CBasePlayer *pl = (CBasePlayer *)CBaseEntity::Instance( pEntity ) ;
-		if( pl )
+		if( pl && pl->m_ggm.iState != STATE_LOAD_FIX )
 		{
-			pl->gravgunmod_data.m_state = STATE_UNINITIALIZED;
+			pl->m_ggm.iState = STATE_UNINITIALIZED;
 			pl->RemoveAllItems( TRUE );
 			UTIL_BecomeSpectator( pl );
 		}
@@ -115,6 +115,15 @@ GLOBALS ASSUMED SET:  g_fGameOver
 */
 void ClientDisconnect( edict_t *pEntity )
 {
+
+	CBasePlayer *pPlayer = (CBasePlayer*)CBaseEntity::Instance( pEntity );
+
+	if( pPlayer && pPlayer->IsPlayer() )
+	{
+		GGM_SaveState( pPlayer );
+		pPlayer->m_ggm.iState = STATE_UNINITIALIZED;
+	}
+
 	if (g_fGameOver)
 		return;
 
@@ -144,12 +153,6 @@ void ClientDisconnect( edict_t *pEntity )
 	UTIL_SetOrigin( &pEntity->v, pEntity->v.origin );
 
 	g_pGameRules->ClientDisconnected( pEntity );
-	if( mp_coop.value )
-	{
-		CBasePlayer *pPlayer = (CBasePlayer*)CBaseEntity::Instance( pEntity );
-		if( pPlayer )
-			pPlayer->gravgunmod_data.m_state = STATE_UNINITIALIZED;
-	}
 
 }
 
@@ -216,7 +219,7 @@ void KickCheater( CBasePlayer *player, char *CheatType )
 {
 	FILE *flch;
 	flch = fopen("Cheaters.txt", "a");
-	fprintf( flch , "name: %s id: %s %s\n", UTIL_CoopPlayerName(player), GETPLAYERAUTHID(player->edict()), CheatType);
+	fprintf( flch , "name: %s id: %s %s\n", GGM_PlayerName(player), GETPLAYERAUTHID(player->edict()), CheatType);
 	SERVER_COMMAND(UTIL_VarArgs("kick #%i cheater\n", GETPLAYERUSERID(player->edict()) ));
 	fclose( flch );
 }
@@ -639,7 +642,7 @@ void ClientCommand( edict_t *pEntity )
 		{
 			pPlayer->RemoveAllItems(TRUE);
 			UTIL_BecomeSpectator(pPlayer);
-			pPlayer->gravgunmod_data.m_state = STATE_SPECTATOR;
+			pPlayer->m_ggm.iState = STATE_SPECTATOR;
 		}
 	}
 	else if( FStrEq( pcmd, "specmode" ) ) // new spectator mode
@@ -708,21 +711,33 @@ void ClientUserInfoChanged( edict_t *pEntity, char *infobuffer )
 	if ( !pEntity->pvPrivateData )
 		return;
 
+	const char *name =  g_engfuncs.pfnInfoKeyValue( infobuffer, "name" );
 
 	// prevent keeping other's uid on saverestore
 	CBasePlayer *pPlayer = GetClassPtr((CBasePlayer *)&pEntity->v);
-	const char *uid = GETPLAYERAUTHID( pPlayer->edict() );
-	if( !uid || strstr(uid, "PENDING") )
-		uid = g_engfuncs.pfnInfoKeyValue( g_engfuncs.pfnGetInfoKeyBuffer( pPlayer->edict() ), "ip" );
+	const char *uid = GGM_GetAuthID( pPlayer );
+	if( !pPlayer->m_ggm.pState || !pPlayer->m_ggm.pState->fRegistered ||  pPlayer->m_ggm.iState != STATE_SPAWNED )
+	{
+		GGMPlayerState *pState = GGM_GetState(uid, name);
 
-	if( strncmp( uid ,pPlayer->gravgunmod_data.uid, 32 ) )
-		pEntity->v.netname = pEntity->v.frags = 0;
+		if( pState != pPlayer->m_ggm.pState )
+		{
 
-	strncpy( pPlayer->gravgunmod_data.uid, uid, 32 );
-	pPlayer->gravgunmod_data.uid[32] = 0;
+			if( pPlayer->m_ggm.iState == STATE_LOAD_FIX )
+			{
+				pEntity->v.netname = pEntity->v.frags = 0;
+				return;
+			}
+			GGM_SaveState( pPlayer );
+			pEntity->v.netname = pEntity->v.frags = 0;
+			pPlayer->m_ggm.pState = pState;
+			pPlayer->m_ggm.iState = STATE_UNINITIALIZED;
+			GGM_RestoreState( pPlayer );
+		}
+	}
 
 	// msg everyone if someone changes their name,  and it isn't the first time (changing no name to current name)
-	if( pEntity->v.netname && ( STRING( pEntity->v.netname ) )[0] != 0 && !FStrEq( STRING( pEntity->v.netname ), g_engfuncs.pfnInfoKeyValue( infobuffer, "name" ) ) )
+	if( pEntity->v.netname && ( STRING( pEntity->v.netname ) )[0] != 0 && !FStrEq( STRING( pEntity->v.netname ), name ) )
 	{
 		char sName[256];
 		char *pName = g_engfuncs.pfnInfoKeyValue( infobuffer, "name" );
@@ -741,7 +756,7 @@ void ClientUserInfoChanged( edict_t *pEntity, char *infobuffer )
 		g_engfuncs.pfnSetClientKeyValue( ENTINDEX(pEntity), infobuffer, "name", sName );
 
 		// prevent phantom nickname changed messages
-		if( mp_coop.value && ((CBasePlayer *)pEntity->pvPrivateData)->gravgunmod_data.m_state == STATE_UNINITIALIZED )
+		if( mp_coop.value && ((CBasePlayer *)pEntity->pvPrivateData)->m_ggm.iState == STATE_UNINITIALIZED )
 			return;
 
 		if( gpGlobals->maxClients > 1 )
@@ -831,23 +846,7 @@ void ServerActivate( edict_t *pEdictList, int edictCount, int clientMax )
 
 	// Link user messages here to make sure first client can get them...
 	LinkUserMessages();
-	if( mp_coop.value )
-	{
-		COOP_ApplyData();
-		for( int i = 1; i <= gpGlobals->maxClients; i++ )
-		{
-			CBasePlayer *plr = (CBasePlayer*)UTIL_PlayerByIndex( i );
-
-			// reset all players state
-			if( plr )
-			{
-				plr->gravgunmod_data.m_state = STATE_UNINITIALIZED;
-				plr->RemoveAllItems( TRUE );
-				UTIL_BecomeSpectator( plr );
-				//plr->Spawn();
-			}
-		}
-	}
+	GGM_ServerActivate();
 }
 
 
@@ -912,12 +911,7 @@ void ParmsNewLevel( void )
 	{
 		pSaveData->connectionCount = BuildChangeList( pSaveData->levelList, MAX_LEVEL_CONNECTIONS );
 	}
-	else
-		if( mp_coop_changelevel.value )
-		{
-			COOP_ClearData();
-			g_WeaponList.Clear();
-		}
+
 }
 
 
@@ -931,13 +925,6 @@ void ParmsChangeLevel( void )
 	{
 		pSaveData->connectionCount = BuildChangeList( pSaveData->levelList, MAX_LEVEL_CONNECTIONS );
 	}
-	else
-		if( mp_coop_changelevel.value )
-		{
-			COOP_ClearData();
-			g_WeaponList.Clear();
-		}
-
 }
 
 
@@ -2125,6 +2112,8 @@ int	ConnectionlessPacket( const struct netadr_s *net_from, const char *args, cha
 {
 	// Parse stuff from args
 	//int max_buffer_size = *response_buffer_size;
+	if( GGM_ConnectionlessPacket( net_from, args, response_buffer, response_buffer_size ) )
+		return 1;
 
 	// Zero it out since we aren't going to respond.
 	// If we wanted to response, we'd write data into response_buffer

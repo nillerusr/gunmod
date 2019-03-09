@@ -2590,7 +2590,7 @@ void CBasePlayer::PostThink()
 	}
 
 	// Handle Tank controlling
-	if( m_pTank && gravgunmod_data.m_state == STATE_SPAWNED )
+	if( m_pTank && m_ggm.iState == STATE_SPAWNED )
 	{
 		// if they've moved too far from the gun,  or selected a weapon, unuse the gun
 		if( m_pTank->OnControls( pev ) && !pev->weaponmodel )
@@ -2859,18 +2859,36 @@ edict_t *EntSelectSpawnPoint( CBaseEntity *pPlayer )
 		{
 			TraceResult tr;
 			if( FNullEnt( pSpot ) )
+			{
+				ALERT( at_console, "Null spot\n");
 				continue;
+			}
 			// only spawnpoints from current map are valid
 			if( !FStrEq( STRING( pSpot->pev->netname ), STRING( gpGlobals->mapname ) ) )
+			{
+				ALERT( at_console, "Spot from different map\n");
 				continue;
+			}
 			// check if it is placed in wall
-			UTIL_TraceHull( pSpot->pev->origin, pSpot->pev->origin , missile, (mp_unduck.value&&g_fSavedDuck)?head_hull:human_hull, NULL, &tr );
+			UTIL_TraceHull( pSpot->pev->origin, pSpot->pev->origin , missile, human_hull, NULL, &tr );
 			if( tr.fStartSolid || tr.fAllSolid  )
-				continue;
+			{
+				if( tr.pHit )
+					ALERT( at_console, "Spot solid check failed, blocked by is %s\n", STRING(tr.pHit->v.classname) );
+				else
+					ALERT( at_console, "Spot solid check failed\n" );
+				int index  = ENTINDEX( tr.pHit );
+				// check if is client
+				if( index == 0 || index > gpGlobals->maxClients )
+					continue;
+			}
 			// trace down to find if there is no floor
 			UTIL_TraceHull( pSpot->pev->origin, pSpot->pev->origin - Vector( 0, 0, -200 ) , missile, human_hull, NULL, &tr );
 			if( tr.vecEndPos.z - pSpot->pev->origin.z < -190 )
+			{
+				ALERT( at_console, "Spot floor check failed\n");
 				continue;
+			}
 			goto ReturnSpot;
 		}
 	}
@@ -2892,7 +2910,7 @@ edict_t *EntSelectSpawnPoint( CBaseEntity *pPlayer )
 ReturnSpot:
 	if( FNullEnt( pSpot ) )
 	{
-		ALERT( at_error, "PutClientInServer: no info_player_start on level" );
+		ALERT( at_error, "PutClientInServer: no info_player_start on level\n" );
 		g_pLastSpawn = NULL;
 		return INDEXENT( 0 );
 	}
@@ -2951,7 +2969,7 @@ void CBasePlayer::Spawn( void )
 	m_flFallVelocity = 0;
 
 	g_pGameRules->SetDefaultPlayerTeam( this );
-	g_pGameRules->GetPlayerSpawnSpot( this );
+	if( !mp_coop.value )g_pGameRules->GetPlayerSpawnSpot( this );
 
 	SET_MODEL( ENT( pev ), "models/player.mdl" );
 	g_ulModelIndexPlayer = pev->modelindex;
@@ -2990,7 +3008,7 @@ void CBasePlayer::Spawn( void )
 	m_lastx = m_lasty = 0;
 
 	m_flNextChatTime = gpGlobals->time;
-	gravgunmod_data.m_flSpawnTime = gpGlobals->time;
+	m_ggm.flSpawnTime = gpGlobals->time;
 
 	g_pGameRules->PlayerSpawn( this );
 	g_flSemclipTime = 0;
@@ -3122,13 +3140,6 @@ int CBasePlayer::Restore( CRestore &restore )
 	m_flNextAttack = UTIL_WeaponTimeBase();
 #endif
 
-	// restored player has some bugs untill respawned
-	if( mp_coop_changelevel.value )
-	{
-		gravgunmod_data.m_state = STATE_CONNECTED;
-		SetThink( &CBasePlayer::Spawn );
-		pev->nextthink = gpGlobals->time + 0.5;
-	}
 	return status;
 }
 

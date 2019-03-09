@@ -62,7 +62,6 @@ void Ent_ClearBlacklist_f( void )
 	}
 }
 
-
 bool Ent_CheckFire( edict_t *player, edict_t *ent, const char *command )
 {
 	if( !mp_enttools_players.value && ENTINDEX( ent ) < gpGlobals->maxClients + 1 )
@@ -75,11 +74,13 @@ bool Ent_CheckFire( edict_t *player, edict_t *ent, const char *command )
 		if( mp_enttools_lockmapentities.value && !pEntity->enttools_data.enttools )
 			return false;
 
-		// only if player online
+		// only if player online or registered
 		if( mp_enttools_checkowner.value == 1 )
 		{
 			if( GGM_PlayerByID( pEntity->enttools_data.ownerid ) )
 				return !strcmp( pEntity->enttools_data.ownerid, GGM_GetPlayerID( player ) );
+			if( pEntity->enttools_data.enttools == 2 )
+				return false;
 		}
 
 		if( mp_enttools_checkowner.value == 2 )
@@ -99,24 +100,24 @@ bool Ent_CheckCreate( edict_t *player, const char *classname )
 	if( !p )
 		return false;
 
-	if( p->gravgunmod_data.m_flEntScope > 1 )
+	if( p->m_ggm.flEntScore > 1 )
 		return false;
 
-	if( gpGlobals->time - p->gravgunmod_data.m_flEntTime > 60 )
+	if( gpGlobals->time - p->m_ggm.flEntTime > 60 )
 	{
-		p->gravgunmod_data.m_flEntTime = gpGlobals->time;
-		p->gravgunmod_data.m_flEntScope = 0;
+		p->m_ggm.flEntTime = gpGlobals->time;
+		p->m_ggm.flEntScore = 0;
 	}
 
 	for( node = entblacklist; node; node = node->next )
 	{
 		if( Q_stricmpext(node->pattern, classname ) )
 		{
-			if( !node->limit || ( p->gravgunmod_data.m_flEntScope + 1.0f / (float)node->limit > 1 ) )
+			if( !node->limit || ( p->m_ggm.flEntScore + 1.0f / (float)node->limit > 1 ) )
 			{
 				// remove all created entities
 				if( node->clear )
-				    Ent_RunGC( false, true, GGM_GetPlayerID( player ) );
+					Ent_RunGC( GC_ENTTOOLS, GGM_GetPlayerID( player ) );
 
 				if( node->behaviour == 2 )
 				{
@@ -128,7 +129,7 @@ bool Ent_CheckCreate( edict_t *player, const char *classname )
 				}
 				return false;
 			}
-			p->gravgunmod_data.m_flEntScope += 1.0f / (float)node->limit;
+			p->m_ggm.flEntScore += 1.0f / (float)node->limit;
 		}
 	}
 
@@ -758,7 +759,7 @@ void Ent_Fire_f( edict_t *player )
 		Ent_ClientPrintf( player, "entity %i\n", i );
 
 		if( single && count > 0 )
-		    break;
+			break;
 
 
 		count++;
@@ -1088,7 +1089,11 @@ void Ent_Create_f( edict_t *player )
 	if( entity )
 	{
 		const char *plid = GGM_GetPlayerID( player );
-		entity->enttools_data.enttools = true;
+		CBasePlayer *pPlayer = (CBasePlayer*)CBaseEntity::Instance( player );
+		entity->enttools_data.enttools = 1;
+		if( pPlayer && pPlayer->IsPlayer() && pPlayer->m_ggm.pState && pPlayer->m_ggm.pState->fRegistered )
+			entity->enttools_data.enttools = 2;
+
 		if( plid );
 			strcpy( entity->enttools_data.ownerid, plid );
 	}

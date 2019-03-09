@@ -214,7 +214,21 @@ BOOL gTouchDisabled = FALSE;
 void DispatchTouch( edict_t *pentTouched, edict_t *pentOther )
 {
 	if( g_fPause )
-		return;
+	{
+		int iOther = ENTINDEX( pentOther );
+		int iTouched = ENTINDEX( pentTouched );
+		if( iOther <= gpGlobals->maxClients )
+			if( iOther )
+				return;
+		if( iTouched <= gpGlobals->maxClients )
+			if( iTouched )
+				return;
+
+		ALERT( at_console, "Touch with pause: %d %s %d %s\n",
+			   iOther, STRING( pentOther->v.classname ),
+			   iTouched, STRING( pentTouched->v.classname ) );
+	}
+
 
 	if( gTouchDisabled )
 		return;
@@ -240,9 +254,15 @@ void DispatchUse( edict_t *pentUsed, edict_t *pentOther )
 
 void DispatchThink( edict_t *pent )
 {
-	if( g_fPause )
+	if( g_fPause ) // called only when physint unavailiable. try workaround errors here
 	{
-		pent->v.nextthink = gpGlobals->time;
+		pent->v.nextthink = gpGlobals->time + gpGlobals->frametime;
+		if( pent->v.movetype == MOVETYPE_PUSH )
+		{
+			pent->v.velocity = g_vecZero;
+			if( pent->v.ltime )
+				pent->v.ltime += gpGlobals->frametime;
+		}
 		return;
 	}
 
@@ -258,8 +278,8 @@ void DispatchThink( edict_t *pent )
 
 void DispatchBlocked( edict_t *pentBlocked, edict_t *pentOther )
 {
-	if( g_fPause )
-		return;
+	//if( g_fPause )
+	//	return;
 
 	CBaseEntity *pEntity = (CBaseEntity *)GET_PRIVATE( pentBlocked );
 	CBaseEntity *pOther = (CBaseEntity *)GET_PRIVATE( pentOther );
@@ -282,7 +302,7 @@ void DispatchSave( edict_t *pent, SAVERESTOREDATA *pSaveData )
 		if( pEntity->ObjectCaps() & FCAP_DONT_SAVE )
 			return;
 
-		if( mp_coop_changelevel.value && pent->v.movetype == MOVETYPE_FOLLOW )
+		if( mp_coop.value && pent->v.movetype == MOVETYPE_FOLLOW )
 		{
 			// players will not be saved, it's items too
 			if( ENTINDEX( pent->v.aiment ) > 0 && ENTINDEX( pent->v.aiment ) <= gpGlobals->maxClients )
@@ -459,6 +479,30 @@ edict_t *EHANDLE::Get( void )
 { 
 	if( m_pent )
 	{
+		// try always return non-null when saved entity is player
+		if( ENTINDEX( m_pent ) > 0 && ENTINDEX( m_pent ) <= gpGlobals->maxClients )
+		{
+			int i;
+
+			// check if player entity exists
+			if( m_pent->pvPrivateData )
+			{
+				CBaseEntity *pPlayer = CBaseEntity::Instance( m_pent );
+				if( pPlayer && pPlayer->IsPlayer() )
+					return pPlayer->edict();
+			}
+
+			// if not, find any player
+			for( i = 1; i <= gpGlobals->maxClients; i++ )
+			{
+				CBaseEntity *pPlayer = UTIL_PlayerByIndex(i);
+				if( pPlayer && pPlayer->IsPlayer() )
+					return pPlayer->edict();
+			}
+
+			// no players found, return as is
+			return m_pent;
+		}
 		if( m_pent->serialnumber == m_serialnumber )
 			return m_pent; 
 		else

@@ -1326,7 +1326,6 @@ public:
 	void EXPORT TriggerChangeLevel( void );
 	void EXPORT ExecuteChangeLevel( void );
 	void EXPORT TouchChangeLevel( CBaseEntity *pOther );
-	void EXPORT UpdateColor();
 	void ChangeLevelNow( CBaseEntity *pActivator );
 
 	static edict_t *FindLandmark( const char *pLandmarkName );
@@ -1343,14 +1342,7 @@ public:
 	char m_szLandmarkName[cchMapNameMost];		// trigger_changelevel only:  landmark on next map
 	string_t m_changeTarget;
 	float m_changeTargetDelay;
-	unsigned int m_uTouchCount;
-	bool m_bUsed;
-	Vector m_vecSpawnOrigin;
-	Vector m_vecSpawnAngles;
-	bool m_fSpawnSaved;
-	bool m_fIsBack;
-	bool m_fSkipSpawnCheck; // skip 30 seconds check when called by multimanager or trigger_once
-	float m_flRepeatTimer;
+	struct COOPChangelevelData m_coopData;
 };
 
 LINK_ENTITY_TO_CLASS( trigger_changelevel, CChangeLevel )
@@ -1362,9 +1354,20 @@ TYPEDESCRIPTION	CChangeLevel::m_SaveData[] =
 	DEFINE_ARRAY( CChangeLevel, m_szLandmarkName, FIELD_CHARACTER, cchMapNameMost ),
 	DEFINE_FIELD( CChangeLevel, m_changeTarget, FIELD_STRING ),
 	DEFINE_FIELD( CChangeLevel, m_changeTargetDelay, FIELD_FLOAT ),
+	DEFINE_FIELD( CChangeLevel, m_coopData.fIsBack, FIELD_CHARACTER ),
 };
 
 IMPLEMENT_SAVERESTORE( CChangeLevel, CBaseTrigger )
+
+struct COOPChangelevelData *COOP_GetTriggerData( CBaseEntity *pTrigger )
+{
+	CChangeLevel *pChangeLevel = (CChangeLevel*)pTrigger;
+	pChangeLevel->m_coopData.pszMapName = pChangeLevel->m_szMapName;
+	pChangeLevel->m_coopData.pszLandmarkName = pChangeLevel->m_szLandmarkName;
+
+
+	return &pChangeLevel->m_coopData;
+}
 
 //
 // Cache user-entity-field values until spawn is called.
@@ -1404,8 +1407,8 @@ When the player touches this, he gets sent to the map listed in the "map" variab
 */
 void CChangeLevel::Spawn( void )
 {
-	m_uTouchCount = 0;
-	m_bUsed = false;
+	m_coopData.bitsTouchCount = 0;
+	m_coopData.fUsed = false;
 	if( FStrEq( m_szMapName, "" ) )
 		ALERT( at_console, "a trigger_changelevel doesn't have a map" );
 
@@ -1418,25 +1421,7 @@ void CChangeLevel::Spawn( void )
 	}
 	InitTrigger();
 	if( !( pev->spawnflags & SF_CHANGELEVEL_USEONLY ) )
-	{
 		SetTouch( &CChangeLevel::TouchChangeLevel );
-		if( mp_coop_changelevel.value )
-		{
-			if( gpGlobals->startspot && STRING(gpGlobals->startspot) && !strcmp(STRING(gpGlobals->startspot), m_szLandmarkName) )
-				m_fIsBack = true;
-			// set color (got from XDM)
-			if( m_fIsBack )
-				pev->rendercolor.z = 255;
-			else
-				pev->rendercolor.y = 255;
-			pev->renderamt = 127;
-
-			pev->effects &= ~EF_NODRAW;
-			pev->rendermode = kRenderTransColor;
-			SetThink( &CChangeLevel::UpdateColor );
-			pev->nextthink = gpGlobals->time + 2;
-		}
-	}
 	//ALERT( at_console, "TRANSITION: %s (%s)\n", m_szMapName, m_szLandmarkName );
 }
 
@@ -1479,37 +1464,16 @@ edict_t *CChangeLevel::FindLandmark( const char *pLandmarkName )
 void CChangeLevel::UseChangeLevel( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 {
 	// if not activated by touch, do not count players
-	m_bUsed = true;
+	m_coopData.fUsed = true;
 	if( pCaller && FClassnameIs( pCaller->edict(), "multi_manager" ) || FClassnameIs( pCaller->edict(), "trigger_once" ) )
-		m_fSkipSpawnCheck = true;
+		m_coopData.fSkipSpawnCheck = true;
 	else
-		m_fSkipSpawnCheck = false;
+		m_coopData.fSkipSpawnCheck = false;
 	const char *classname = NULL;
 	if( pCaller && pCaller->pev->classname )
 		classname = STRING( pCaller->pev->classname );
 	ALERT( at_console, "UseChangelevel: %p %p %d %s\n", pActivator, pCaller, useType, classname );
 	ChangeLevelNow( pActivator );
-}
-
-
-void CChangeLevel::UpdateColor( void )
-{
-	Vector origin = VecBModelOrigin(pev);
-	Vector point, angles;
-	CBaseEntity *pPlayer;
-	pev->nextthink = gpGlobals->time + 30;
-
-	/*if( !m_fIsBack && (pPlayer = UTIL_FindEntityByClassname( NULL, "info_player_start" ))  )
-		if( (origin - pPlayer->pev->origin).Length() < 500 )
-			m_fIsBack = true;*/
-	if( !m_fIsBack && UTIL_CoopGetSpawnPoint( &point, &angles ) )
-		if( (origin - point).Length() < 500 )
-			m_fIsBack = true;
-	pev->rendercolor = g_vecZero;
-	if( m_fIsBack )
-		pev->rendercolor.z = 255;
-	else
-		pev->rendercolor.y = 255;
 }
 
 // If some player is on train with global state, save id
@@ -1537,50 +1501,101 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 {
 	edict_t	*pentLandmark;
 
-	LEVELLIST levels[16];
+	// LEVELLIST levels[16];
 	hudtextparms_t params = {};
 	params.fadeinTime = 0.5;
 	params.fadeoutTime = .5;
 	params.holdTime = 10;
 	params.r2 = params.g2 = params.b2 = params.a2 = params.r1 = params.g1 = params.b1 = params.a1 = 255;
-	bool valid = false;
 
 	ASSERT( !FStrEq( m_szMapName, "" ) );
 
-	if( s_SavedCoords.valid )
+	if( m_coopData.fValid )
 		return; //already pending
 
-	if( !strcmp( m_szMapName, mp_coop_disabledmap.string ) )
-	{
-		ClientPrint( pActivator->pev, HUD_PRINTCENTER, "MAP %S IS DISABLED", m_szMapName );
-		return;
-	}
 	// forget touch by some fool
 	if( gpGlobals->time - pev->dmgtime > 30)
+		m_coopData.bitsTouchCount = 0;
+
+	// find best candidate for default spawn point
+	if( !m_coopData.fSpawnSaved )
 	{
-		m_uTouchCount = 0;
-		pev->nextthink = gpGlobals->time + 30;
+		CBasePlayer *pRealActivator = NULL;
+
+		if( pActivator )
+		{
+			// trigger touch
+			if( pActivator->IsNetClient() )
+				pRealActivator = (CBasePlayer*)pActivator;
+
+
+			// activate by path track?
+			if( !pRealActivator && pActivator->IsBSPModel() )
+			{
+				for( int i = 1; i < gpGlobals->maxClients; i++ )
+				{
+					CBaseEntity *plr = UTIL_PlayerByIndex( i );
+					if( plr && plr->IsNetClient() && plr->pev->groundentity == pActivator->edict() )
+					{
+						pRealActivator = (CBasePlayer*)plr;
+						break;
+					}
+				}
+			}
+
+			// activate by something other, player nearest to transition volume center
+			if( !pRealActivator && m_coopData.fUsed )
+			{
+				CBaseEntity *pTransition = FindTriggerTransition( m_szLandmarkName );
+
+				if( pTransition )
+				{
+					Vector vecOrigin = VecBModelOrigin( pTransition->pev );
+					float dist = 9999;
+
+					for( int i = 1; i < gpGlobals->maxClients; i++ )
+					{
+						CBaseEntity *plr = UTIL_PlayerByIndex( i );
+						if( plr && plr->IsNetClient() && plr->pev->modelindex && pTransition->Intersects( plr ) )
+						{
+							float diff = (vecOrigin - plr->pev->origin).Length();
+							if( dist > diff )
+							{
+								dist = diff;
+								pRealActivator = (CBasePlayer *)plr;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if( pRealActivator )
+		{
+			GGM_SavePosition(pRealActivator, &m_coopData.savedPosition);
+			m_hActivator = pRealActivator;
+			m_coopData.fSpawnSaved = true;
+			ALERT( at_logged, "CL %s %s: saved position %s, %d\n", m_szMapName, m_szLandmarkName, STRING( pRealActivator->pev->netname ), m_coopData.fUsed );
+		}
 	}
 
-	if(mp_coop_changelevel.value)
+	if(mp_coop.value)
 	{
-		SavedCoords l_SavedCoords = {};
 		// if not activated by touch, do not count players
-		if( !m_bUsed )
+		if( !m_coopData.fUsed )
 		{
-			m_uTouchCount |=  1 << ( ENTINDEX( pActivator->edict() ) - 1);
+			CBaseEntity *pActTrain = UTIL_CoopGetPlayerTrain(m_hActivator);
 
-			// Keep first toucher coords to save correct spawn angles
-			if( !m_fSpawnSaved && pActivator->IsPlayer() )
-			{
-				m_vecSpawnOrigin = pActivator->pev->origin;
-				m_vecSpawnAngles = pActivator->pev->angles;
-				m_fSpawnSaved = true;
-				UTIL_CoopSaveTrain( pActivator, &l_SavedCoords );
-			}
-			unsigned int count1 = 0;
-			unsigned int count2 = 0;
+			unsigned int count1 = 0; // players that touched
+			unsigned int count2 = 0; // all players
 			unsigned int i = 0;
+
+			m_coopData.bitsTouchCount |=  1 << ( ENTINDEX( pActivator->edict() ) - 1);
+
+			// train has priority on not-train
+			if( pActTrain && !m_coopData.savedPosition.szTrainGlobal[0] )
+				GGM_SavePosition( (CBasePlayer*)(CBaseEntity*)m_hActivator, &m_coopData.savedPosition );
 
 			// loop through all clients, count number of players
 			for( i = 1; i <= gpGlobals->maxClients; i++ )
@@ -1588,45 +1603,46 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 				CBaseEntity *plr = UTIL_PlayerByIndex( i );
 				CBaseEntity *pTrain = UTIL_CoopGetPlayerTrain( plr );
 
-				if( !pTrain && UTIL_CoopIsBadPlayer( plr ) )
+				if( !pTrain && GGM_IsTempBanned( plr ) )
 					continue;
-
+					
 				// count only players spawned more 30 seconds ago
-				if( plr && plr->IsPlayer() && (pTrain || (gpGlobals->time -((CBasePlayer*)plr)->gravgunmod_data.m_flSpawnTime ) > 30 ) && plr->pev->modelindex )
+				if( plr && plr->IsPlayer() && (pTrain || (gpGlobals->time -((CBasePlayer*)plr)->m_ggm.flSpawnTime ) > 30 ) && plr->pev->modelindex )
 				{
-					count2++;
 
-					// player touched trigger, save it's coordinates
-					if( m_uTouchCount & (1<<(i - 1)) )
+
+					// refuse and cancel
+					if( plr && pTrain && (pTrain != pActTrain) )
 					{
-						count1++;
-						if( InTransitionVolume( plr, m_szLandmarkName ))
-						{
-							l_SavedCoords.fDuck |= !!(plr->pev->flags & FL_DUCKING);
-							UTIL_CoopSaveTrain( plr, &l_SavedCoords );
-							char *ip = g_engfuncs.pfnInfoKeyValue( g_engfuncs.pfnGetInfoKeyBuffer( plr->edict() ), "ip" );
-							strcpy(l_SavedCoords.ip[l_SavedCoords.iCount], ip );
-							l_SavedCoords.origin[l_SavedCoords.iCount] = plr->pev->origin;
-							l_SavedCoords.angles[l_SavedCoords.iCount] = plr->pev->angles;
-							l_SavedCoords.iCount++;
-						}
+						m_coopData.fSpawnSaved = false;
+						return;
 					}
 
+
+					count2++;
+
+					// train has priority on not-train
+					if( pTrain && !m_coopData.savedPosition.szTrainGlobal[0] )
+						GGM_SavePosition( (CBasePlayer*)plr, &m_coopData.savedPosition );
+
+					// player touched trigger, count it
+					if( m_coopData.bitsTouchCount & (1<<(i - 1)) )
+						count1++;
 				}
 			}
 
 			i = 0;
-			if( !l_SavedCoords.trainsaved )
+			if( !pActTrain )
 			{
 				if( !count2 )
 				{
-					if( pActivator && pActivator->IsPlayer() && m_flRepeatTimer - gpGlobals->time < -1 )
+					if( pActivator && pActivator->IsPlayer() && m_coopData.flRepeatTimer - gpGlobals->time < -1 )
 					{
 						CBasePlayer *pPlayer = (CBasePlayer*)pActivator;
 						//UTIL_CoopPrintMessage("%s^7 trying activate changelevel too early\n", UTIL_CoopPlayerName( pPlayer ));
 						UTIL_CleanSpawnPoint( pPlayer->pev->origin, 50 );
-						m_flRepeatTimer = gpGlobals->time;
-						pPlayer->gravgunmod_data.m_iLocalConfirm = -2;
+						m_coopData.flRepeatTimer = gpGlobals->time;
+						pPlayer->m_ggm.iLocalConfirm = -2;
 					}
 
 					ClientPrint( pActivator->pev, HUD_PRINTCENTER, "Too early! You or other players near you\nplaying less than 30 seconds!" );
@@ -1634,60 +1650,40 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 				}
 
 				if( count1 > 1 && count1 < count2 / 3 )
-					i = count1 - count1 < count2 / 3;
-				if( count1 > 1 && count1 < count2 / 3 )
 					i = 1;
 
 				if( i )
 					UTIL_CoopPrintMessage(
 						"%s touched end of map\nnext is %s %s, %d to go\n",
-						UTIL_CoopPlayerName( pActivator ),
+						GGM_PlayerName( pActivator ),
 						st_szNextMap, st_szNextSpot, i );
 				if( count2 )
 				{
 					pev->rendercolor.x = count1 * 255 / count2;
-					if( m_fIsBack )
+					if( m_coopData.fIsBack )
 						pev->rendercolor.z = 255 - pev->rendercolor.x;
 					else
 						pev->rendercolor.y = 255 - pev->rendercolor.x;
 				}
 
-				ALERT( at_console, "^3CHANGELEVEL:^7 %d %d\n", count2, count1 );
+				//ALERT( at_console, "^3CHANGELEVEL:^7 %d %d\n", count2, count1 );
 
-				if( !m_fIsBack && count1 > 1 && count1 < count2 / 3 )
+				if( !m_coopData.fIsBack && count1 > 1 && count1 < count2 / 3 )
 					return;
 
 				//if( count1 <= 1 && count2 == 2 )
 				//	return;
 
-				if( m_fIsBack )
+				if( m_coopData.fIsBack )
 					if( !COOP_ConfirmMenu( this, pActivator, count2, m_szMapName ) )
 						return;
 			}
 
-			if( m_fSpawnSaved )
-			{
-				l_SavedCoords.triggerangles = m_vecSpawnAngles;
-				l_SavedCoords.triggerorigin = m_vecSpawnOrigin;
-				valid = true;
-			}
-			ALERT( at_console, "^2CHANGELEVEL:^7 %d %d %d\n", count2, count1, (int)m_fIsBack);
+			ALERT( at_console, "^2CHANGELEVEL:^7 %d %d %d\n", count2, count1, (int)m_coopData.fIsBack);
 		}
 		else
 		{
-			l_SavedCoords.fDuck = false;
-			// Get current player's coordinates
-			if( pActivator && pActivator->IsPlayer() )
-			{
-				l_SavedCoords.triggerangles = pActivator->pev->angles;
-				l_SavedCoords.triggerorigin = pActivator->pev->origin;
-				valid = true;
-				l_SavedCoords.fDuck |= !!(pActivator->pev->flags & FL_DUCKING);
-			}
-
 		}
-		UTIL_CoopSaveTrain( pActivator, &l_SavedCoords );
-		s_SavedCoords = l_SavedCoords;
 
 
 
@@ -1696,8 +1692,8 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 	else if( g_pGameRules->IsDeathmatch() )
 		return;
 
-	m_uTouchCount = 0;
-	m_bUsed = false;
+	m_coopData.bitsTouchCount = 0;
+	m_coopData.fUsed = false;
 	// Some people are firing these multiple times in a frame, disable
 	if( gpGlobals->time == pev->dmgtime )
 		return;
@@ -1715,7 +1711,7 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 		{
 			CBaseEntity *plr = UTIL_PlayerByIndex( i );
 
-			if( plr && plr->IsPlayer() && ( !FindTriggerTransition( m_szLandmarkName ) || (gpGlobals->time -((CBasePlayer*)plr)->gravgunmod_data.m_flSpawnTime ) > 30  || m_fSkipSpawnCheck ) )
+			if( plr && plr->IsPlayer() && ( !FindTriggerTransition( m_szLandmarkName ) || (gpGlobals->time -((CBasePlayer*)plr)->m_ggm.flSpawnTime ) > 30  || m_coopData.fSkipSpawnCheck ) )
 			{
 					if( InTransitionVolume( plr, m_szLandmarkName ))
 					{
@@ -1733,15 +1729,26 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 		ALERT( at_console, "There are %d players in transition volume %s\n", count, m_szLandmarkName );
 			
 	}
-	else if( ( (gpGlobals->time -((CBasePlayer*)pPlayer)->gravgunmod_data.m_flSpawnTime ) < 30 )  && FindTriggerTransition( m_szLandmarkName ) || !InTransitionVolume( pPlayer, m_szLandmarkName ) )
+	else if( ( (gpGlobals->time -((CBasePlayer*)pPlayer)->m_ggm.flSpawnTime ) < 30 )  && FindTriggerTransition( m_szLandmarkName ) || !InTransitionVolume( pPlayer, m_szLandmarkName ) )
 	{
-		ALERT( at_console, "Player isn't in the transition volume %s, aborting\n", m_szLandmarkName );
-		if( !m_fSkipSpawnCheck )
+		if( !m_coopData.fSkipSpawnCheck )
+		{
+			ALERT( at_console, "Player isn't in the transition volume %s, aborting\n", m_szLandmarkName );
 			return;
+		}
+		else
+			ALERT( at_console, "Player isn't in the transition volume %s, but changelevel forced\n", m_szLandmarkName );
 	}
 	else ALERT( at_console, "Player is in the transition volume %s, changing level now\n", m_szLandmarkName );
 
-	UTIL_CoopPrintMessage( "%s^7 activated changelevel, spawncheck is %d\n", UTIL_CoopPlayerName( pPlayer ), (int)!m_fSkipSpawnCheck );
+	if( !m_coopData.savedPosition.szTrainGlobal[0] && pPlayer )
+	{
+		if( UTIL_CoopGetPlayerTrain( pPlayer ) )
+		GGM_SavePosition( (CBasePlayer*)pPlayer, &m_coopData.savedPosition );
+	}
+
+
+	UTIL_CoopPrintMessage( "%s^7 activated changelevel, spawncheck is %d\n", GGM_PlayerName( pPlayer ), (int)!m_coopData.fSkipSpawnCheck );
 
 	// This object will get removed in the call to CHANGE_LEVEL, copy the params into "safe" memory
 	strcpy( st_szNextMap, m_szMapName );
@@ -1755,9 +1762,9 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 	if( !FNullEnt( pentLandmark ) )
 	{
 		strcpy( st_szNextSpot, m_szLandmarkName );
-		strcpy( s_SavedCoords.landmark, m_szLandmarkName );
-		s_SavedCoords.offset = gpGlobals->vecLandmarkOffset = VARS( pentLandmark )->origin;
+		gpGlobals->vecLandmarkOffset = VARS( pentLandmark )->origin;
 	}
+
 
 	// Create an entity to fire the changetarget
 	if( m_changeTarget )
@@ -1778,11 +1785,14 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 		}
 	}
 
+	m_coopData.fValid = true;
+	ALERT( at_logged, "CL %s %s: activating %s, %d\n", m_szMapName, m_szLandmarkName, STRING( pPlayer->pev->netname ), m_coopData.fUsed );
+
 	//ALERT( at_console, "Level touches %d levels\n", ChangeList( levels, 16 ) );
 	ALERT( at_console, "CHANGE LEVEL: %s %s\n", st_szNextMap, st_szNextSpot );
-	COOP_ResetVote();
+	GGM_ClearVote();
 	// loop through all clients, reset state
-	if( mp_coop_changelevel.value )
+	if( mp_coop.value )
 	{
 		for( int i = 1; i <= gpGlobals->maxClients; i++ )
 		{
@@ -1791,7 +1801,9 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 			// reset all players state to make it spawn again after restart
 			if( plr )
 			{
-				plr->gravgunmod_data.m_state = STATE_UNINITIALIZED;
+				GGM_SaveState( plr );
+				plr->m_ggm.iState = STATE_UNINITIALIZED;
+				plr->m_ggm.pState = NULL;
 				plr->RemoveAllItems( TRUE );
 				UTIL_BecomeSpectator( plr );
 				// HACK: force perform reconnection
@@ -1801,8 +1813,8 @@ void CChangeLevel::ChangeLevelNow( CBaseEntity *pActivator )
 		}
 		g_fPause = true;
 	}
-	s_SavedCoords.fUsed = m_bUsed;
-	s_SavedCoords.valid = valid;
+
+	COOP_SetupLandmarkTransition( st_szNextMap, st_szNextSpot, gpGlobals->vecLandmarkOffset, m_coopData.fSpawnSaved?&m_coopData.savedPosition:NULL );
 
 	// wait 5 frames to make sure all players are in reconnected state
 	if( mp_coop_reconnect_hack.value )
@@ -1819,7 +1831,7 @@ void CChangeLevel::TouchChangeLevel( CBaseEntity *pOther )
 	if( !FClassnameIs( pOther->pev, "player" ) )
 		return;
 
-	m_fSkipSpawnCheck = false;
+	m_coopData.fSkipSpawnCheck = false;
 
 	ChangeLevelNow( pOther );
 }
@@ -2260,7 +2272,7 @@ LINK_ENTITY_TO_CLASS( trigger_autosave, CTriggerSave )
 
 void CTriggerSave::Spawn( void )
 {
-	if( g_pGameRules->IsDeathmatch() )
+	if( !mp_coop.value && g_pGameRules->IsDeathmatch() )
 	{
 		REMOVE_ENTITY( ENT( pev ) );
 		return;
@@ -2281,7 +2293,10 @@ void CTriggerSave::SaveTouch( CBaseEntity *pOther )
 
 	SetTouch( NULL );
 	UTIL_Remove( this );
-	SERVER_COMMAND( "autosave\n" );
+	if( mp_coop.value )
+		COOP_AutoSave( pOther );
+	else
+		SERVER_COMMAND( "autosave\n" );
 }
 
 #define SF_ENDSECTION_USEONLY		0x0001
@@ -2308,6 +2323,8 @@ void CTriggerEndSection::EndSectionUse( CBaseEntity *pActivator, CBaseEntity *pC
 	if( pev->message )
 	{
 		g_engfuncs.pfnEndSection( STRING( pev->message ) );
+		if( mp_coop.value )
+			COOP_ClearSaves();
 	}
 	UTIL_Remove( this );
 }
@@ -2340,6 +2357,8 @@ void CTriggerEndSection::EndSectionTouch( CBaseEntity *pOther )
 	if( pev->message )
 	{
 		g_engfuncs.pfnEndSection( STRING( pev->message ) );
+		if( mp_coop.value )
+			COOP_ClearSaves();
 	}
 	UTIL_Remove( this );
 }
