@@ -571,7 +571,7 @@ void CGMGrenade::TumbleThink( void )
 void CGMGrenade::Spawn( void )
 {
 	pev->movetype = MOVETYPE_BOUNCE;
-	pev->classname = MAKE_STRING( "gm_grenade" );
+	pev->classname = MAKE_STRING( "grenade" );
 
 	pev->solid = SOLID_BBOX;
 
